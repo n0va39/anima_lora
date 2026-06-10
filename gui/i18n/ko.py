@@ -197,6 +197,8 @@ STRINGS: dict[str, str] = {
     "sample_prompt_col_extra": "추가 옵션",
     "sample_prompt_add": "프롬프트 추가",
     "sample_prompt_remove": "선택 삭제",
+    "sample_prompt_expand": "입력창 키우기",
+    "sample_prompt_collapse": "입력창 줄이기",
     "sample_prompt_hint": "0/빈 값 = 기본값",
     "finished": "--- 완료 (종료 코드 {code}) ---",
     "starting": "시작 중… (torch / accelerate 로딩)",

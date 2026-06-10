@@ -201,6 +201,8 @@ STRINGS: dict[str, str] = {
     "sample_prompt_col_extra": "Extra",
     "sample_prompt_add": "Add prompt",
     "sample_prompt_remove": "Remove selected",
+    "sample_prompt_expand": "Expand editor",
+    "sample_prompt_collapse": "Collapse editor",
     "sample_prompt_hint": "0/blank = default",
     "finished": "--- Finished (exit code {code}) ---",
     "starting": "Starting… (loading torch / accelerate)",

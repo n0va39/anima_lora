@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QTableWidget,
     QWidget,
@@ -125,9 +126,12 @@ class _SamplePromptsWidget(QWidget):
     _COL_GUIDANCE = 6
     _COL_NEGATIVE = 7
     _COL_EXTRA = 8
+    _COLLAPSED_HEIGHT = 300
+    _EXPANDED_HEIGHT = 560
 
     def __init__(self, prompts) -> None:
         super().__init__()
+        self._expanded = False
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
 
@@ -159,7 +163,9 @@ class _SamplePromptsWidget(QWidget):
         ):
             hdr.setSectionResizeMode(col, QHeaderView.ResizeToContents)
         self.table.verticalHeader().setVisible(False)
-        self.table.setMaximumHeight(220)
+        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         lay.addWidget(self.table)
 
         row_lay = QHBoxLayout()
@@ -170,6 +176,9 @@ class _SamplePromptsWidget(QWidget):
         remove_btn = QPushButton(t("sample_prompt_remove"))
         remove_btn.clicked.connect(self._remove_selected)
         row_lay.addWidget(remove_btn)
+        self.expand_btn = QPushButton(t("sample_prompt_expand"))
+        self.expand_btn.clicked.connect(self._toggle_expanded)
+        row_lay.addWidget(self.expand_btn)
         row_lay.addStretch(1)
         hint = QLabel(t("sample_prompt_hint"))
         hint.setStyleSheet("color:#888;")
@@ -182,6 +191,21 @@ class _SamplePromptsWidget(QWidget):
                 self._add_row(row)
         else:
             self._add_row({})
+        self._apply_height()
+
+    def _apply_height(self) -> None:
+        height = self._EXPANDED_HEIGHT if self._expanded else self._COLLAPSED_HEIGHT
+        self.table.setMinimumHeight(height)
+        self.table.setMaximumHeight(height)
+        self.expand_btn.setText(
+            t("sample_prompt_collapse")
+            if self._expanded
+            else t("sample_prompt_expand")
+        )
+
+    def _toggle_expanded(self) -> None:
+        self._expanded = not self._expanded
+        self._apply_height()
 
     @staticmethod
     def _parse_prompts(prompts) -> list[dict[str, Any]]:

@@ -195,8 +195,13 @@ _GROUPS = {
         "lr_scheduler",
         "timestep_sampling",
         "discrete_flow_shift",
+        "masked_loss",
         "use_valid",
         "validation_split_num",
+    },
+    "Preprocess": {
+        "drop_lowres_images",
+        "min_pixels",
     },
     "Samples": {
         "sample_prompts",
@@ -212,7 +217,6 @@ _GROUPS = {
         "blocks_to_swap",
         "torch_compile",
         "cache_llm_adapter_outputs",
-        "masked_loss",
         "mixed_precision",
         "vae_chunk_size",
         "vae_disable_cache",
@@ -234,8 +238,6 @@ _GROUPS = {
         "resized_image_dir",
         "lora_cache_dir",
         "path_pattern",
-        "drop_lowres_images",
-        "min_pixels",
     },
 }
 _K2G = {k: g for g, ks in _GROUPS.items() for k in ks}
@@ -275,6 +277,7 @@ _BASIC = {
     "num_experts",
     "use_shuffled_caption_variants",
     "caption_dropout_rate",
+    "masked_loss",
     "gradient_checkpointing",
     "blocks_to_swap",
     "pretrained_model_name_or_path",
