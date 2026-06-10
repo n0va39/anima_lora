@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
@@ -392,6 +393,9 @@ class _SamplePromptsWidget(QWidget):
         add_btn = QPushButton(t("sample_prompt_add"))
         add_btn.clicked.connect(lambda: self._add_row({}))
         row_lay.addWidget(add_btn)
+        select_all_btn = QPushButton(t("sample_prompt_select_all"))
+        select_all_btn.clicked.connect(self._select_all)
+        row_lay.addWidget(select_all_btn)
         remove_btn = QPushButton(t("sample_prompt_remove"))
         remove_btn.clicked.connect(self._remove_selected)
         row_lay.addWidget(remove_btn)
@@ -475,10 +479,23 @@ class _SamplePromptsWidget(QWidget):
         self._row_layout.insertWidget(max(0, self._row_layout.count() - 1), row)
         self.changed.emit()
 
+    def _select_all(self) -> None:
+        for row in self._rows:
+            row.select_box.setChecked(True)
+
     def _remove_selected(self) -> None:
         rows = [row for row in self._rows if row.select_box.isChecked()]
         if not rows:
-            rows = self._rows[-1:] if self._rows else []
+            return
+        answer = QMessageBox.question(
+            self,
+            t("sample_prompt_remove_confirm_title"),
+            t("sample_prompt_remove_confirm_body", n=len(rows)),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if answer != QMessageBox.Yes:
+            return
         for row in rows:
             if row in self._rows:
                 self._rows.remove(row)
