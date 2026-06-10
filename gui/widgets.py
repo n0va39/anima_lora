@@ -18,15 +18,16 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
-    QHeaderView,
+    QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QSpinBox,
-    QTableWidget,
     QWidget,
     QVBoxLayout,
 )
@@ -112,61 +113,187 @@ class _TargetResWidget(QWidget):
         return out or [1024]
 
 
+class _SamplePromptRow(QFrame):
+    """One editable sample prompt while preserving train.py's one-line syntax."""
+
+    changed = Signal()
+
+    def __init__(self, data: dict[str, Any]) -> None:
+        super().__init__()
+        self.setFrameShape(QFrame.StyledPanel)
+        self.setStyleSheet(
+            "QFrame { border:1px solid #444; border-radius:4px; } "
+            "QLabel, QLineEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, "
+            "QCheckBox { border:0; }"
+        )
+
+        lay = QGridLayout(self)
+        lay.setContentsMargins(10, 8, 10, 8)
+        lay.setHorizontalSpacing(12)
+        lay.setVerticalSpacing(6)
+
+        self.select_box = QCheckBox(t("sample_prompt_select"))
+        lay.addWidget(self.select_box, 0, 0, 1, 2)
+
+        prompt_label = QLabel(t("sample_prompt_col_prompt"))
+        lay.addWidget(prompt_label, 1, 0)
+        self.prompt_edit = QPlainTextEdit(str(data.get("prompt", "")))
+        self.prompt_edit.setLineWrapMode(QPlainTextEdit.WidgetWidth)
+        self.prompt_edit.setMinimumHeight(118)
+        self.prompt_edit.setPlaceholderText(t("sample_prompt_prompt_placeholder"))
+        self.prompt_edit.textChanged.connect(self.changed.emit)
+        lay.addWidget(self.prompt_edit, 2, 0, 7, 1)
+
+        opts = QGridLayout()
+        opts.setContentsMargins(0, 0, 0, 0)
+        opts.setHorizontalSpacing(8)
+        opts.setVerticalSpacing(4)
+        lay.addLayout(opts, 1, 1, 8, 1)
+
+        self.width = self._int_spin(
+            data.get("width", 0),
+            default_label=t("sample_prompt_default_width"),
+        )
+        self.height = self._int_spin(
+            data.get("height", 0),
+            default_label=t("sample_prompt_default_height"),
+        )
+        self.steps = self._int_spin(
+            data.get("steps", 0),
+            maximum=1000,
+            default_label=t("sample_prompt_default_steps"),
+        )
+        self.seed = self._seed_spin(data.get("seed"))
+        self.scale = self._float_spin(
+            data.get("scale", 0.0),
+            default_label=t("sample_prompt_default_cfg"),
+        )
+        self.guidance = self._float_spin(
+            data.get("guidance", 0.0),
+            default_label=t("sample_prompt_default_guidance"),
+        )
+        self.negative = QPlainTextEdit(str(data.get("negative", "")))
+        self.negative.setLineWrapMode(QPlainTextEdit.WidgetWidth)
+        self.negative.setMaximumHeight(58)
+        self.negative.setPlaceholderText(t("sample_prompt_default_negative"))
+        self.negative.textChanged.connect(self.changed.emit)
+        self.extra = QLineEdit(str(data.get("extra", "")))
+        self.extra.textChanged.connect(lambda *_: self.changed.emit())
+
+        for row, (label, widget) in enumerate(
+            (
+                (t("sample_prompt_col_width"), self.width),
+                (t("sample_prompt_col_height"), self.height),
+                (t("sample_prompt_col_steps"), self.steps),
+                (t("sample_prompt_col_seed"), self.seed),
+                (t("sample_prompt_col_cfg"), self.scale),
+                (t("sample_prompt_col_guidance"), self.guidance),
+                (t("sample_prompt_col_negative"), self.negative),
+                (t("sample_prompt_col_extra"), self.extra),
+            )
+        ):
+            opts.addWidget(QLabel(label), row, 0)
+            opts.addWidget(widget, row, 1)
+
+        lay.setColumnStretch(0, 4)
+        lay.setColumnStretch(1, 2)
+        self.setMinimumHeight(220)
+
+    def _int_spin(
+        self,
+        value: int = 0,
+        *,
+        maximum: int = 8192,
+        default_label: str,
+        unset: int = 0,
+    ) -> QSpinBox:
+        w = QSpinBox()
+        w.setRange(unset, maximum)
+        w.setSpecialValueText(default_label)
+        w.setValue(int(value or unset))
+        w.valueChanged.connect(lambda *_: self.changed.emit())
+        w.setMinimumWidth(110)
+        return _no_wheel(w)
+
+    def _seed_spin(self, value: int | None = None) -> QSpinBox:
+        w = QSpinBox()
+        w.setRange(-1, 2_147_483_647)
+        w.setSpecialValueText(t("sample_prompt_default_seed"))
+        w.setValue(-1 if value is None else int(value))
+        w.valueChanged.connect(lambda *_: self.changed.emit())
+        w.setMinimumWidth(110)
+        return _no_wheel(w)
+
+    def _float_spin(self, value: float = 0.0, *, default_label: str) -> QDoubleSpinBox:
+        w = QDoubleSpinBox()
+        w.setRange(0.0, 100.0)
+        w.setDecimals(2)
+        w.setSingleStep(0.5)
+        w.setSpecialValueText(default_label)
+        w.setValue(float(value or 0.0))
+        w.valueChanged.connect(lambda *_: self.changed.emit())
+        w.setMinimumWidth(110)
+        return _no_wheel(w)
+
+    @staticmethod
+    def _single_line(text: str) -> str:
+        return re.sub(r"\s+", " ", text.strip())
+
+    def value(self) -> str | None:
+        prompt = self._single_line(self.prompt_edit.toPlainText())
+        if not prompt:
+            return None
+        parts = [prompt]
+        for widget, flag in (
+            (self.width, "w"),
+            (self.height, "h"),
+            (self.steps, "s"),
+        ):
+            val = widget.value()
+            if val > 0:
+                parts.append(f"--{flag} {val}")
+        seed = self.seed.value()
+        if seed >= 0:
+            parts.append(f"--d {seed}")
+        for widget, flag in ((self.scale, "l"), (self.guidance, "g")):
+            val = widget.value()
+            if val > 0:
+                parts.append(f"--{flag} {val:g}")
+        negative = self._single_line(self.negative.toPlainText())
+        if negative:
+            parts.append(f"--n {negative}")
+        extra = self._single_line(self.extra.text())
+        if extra:
+            parts.append(extra if extra.startswith("--") else "--" + extra)
+        return " ".join(parts)
+
+
 class _SamplePromptsWidget(QWidget):
     """Structured editor for train.py's one-line sample prompt syntax."""
 
     changed = Signal()
 
-    _COL_PROMPT = 0
-    _COL_W = 1
-    _COL_H = 2
-    _COL_STEPS = 3
-    _COL_SEED = 4
-    _COL_SCALE = 5
-    _COL_GUIDANCE = 6
-    _COL_NEGATIVE = 7
-    _COL_EXTRA = 8
     _COLLAPSED_HEIGHT = 300
-    _EXPANDED_HEIGHT = 560
+    _EXPANDED_HEIGHT = 650
 
     def __init__(self, prompts) -> None:
         super().__init__()
         self._expanded = False
+        self._rows: list[_SamplePromptRow] = []
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
 
-        self.table = QTableWidget(0, 9)
-        self.table.setHorizontalHeaderLabels(
-            [
-                t("sample_prompt_col_prompt"),
-                t("sample_prompt_col_width"),
-                t("sample_prompt_col_height"),
-                t("sample_prompt_col_steps"),
-                t("sample_prompt_col_seed"),
-                t("sample_prompt_col_cfg"),
-                t("sample_prompt_col_guidance"),
-                t("sample_prompt_col_negative"),
-                t("sample_prompt_col_extra"),
-            ]
-        )
-        hdr = self.table.horizontalHeader()
-        hdr.setSectionResizeMode(self._COL_PROMPT, QHeaderView.Stretch)
-        hdr.setSectionResizeMode(self._COL_NEGATIVE, QHeaderView.Stretch)
-        hdr.setSectionResizeMode(self._COL_EXTRA, QHeaderView.ResizeToContents)
-        for col in (
-            self._COL_W,
-            self._COL_H,
-            self._COL_STEPS,
-            self._COL_SEED,
-            self._COL_SCALE,
-            self._COL_GUIDANCE,
-        ):
-            hdr.setSectionResizeMode(col, QHeaderView.ResizeToContents)
-        self.table.verticalHeader().setVisible(False)
-        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.table.setStyleSheet(
+        hint = QLabel(t("sample_prompt_hint"))
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color:#aaa;")
+        lay.addWidget(hint)
+
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.scroll.setStyleSheet(
             """
             QScrollBar:vertical {
                 background: #242424;
@@ -194,7 +321,13 @@ class _SamplePromptsWidget(QWidget):
             }
             """
         )
-        lay.addWidget(self.table)
+        self._rows_widget = QWidget()
+        self._row_layout = QVBoxLayout(self._rows_widget)
+        self._row_layout.setContentsMargins(0, 0, 0, 0)
+        self._row_layout.setSpacing(8)
+        self._row_layout.addStretch(1)
+        self.scroll.setWidget(self._rows_widget)
+        lay.addWidget(self.scroll)
 
         row_lay = QHBoxLayout()
         row_lay.setContentsMargins(0, 0, 0, 0)
@@ -208,9 +341,6 @@ class _SamplePromptsWidget(QWidget):
         self.expand_btn.clicked.connect(self._toggle_expanded)
         row_lay.addWidget(self.expand_btn)
         row_lay.addStretch(1)
-        hint = QLabel(t("sample_prompt_hint"))
-        hint.setStyleSheet("color:#888;")
-        row_lay.addWidget(hint)
         lay.addLayout(row_lay)
 
         rows = self._parse_prompts(prompts)
@@ -223,8 +353,8 @@ class _SamplePromptsWidget(QWidget):
 
     def _apply_height(self) -> None:
         height = self._EXPANDED_HEIGHT if self._expanded else self._COLLAPSED_HEIGHT
-        self.table.setMinimumHeight(height)
-        self.table.setMaximumHeight(height)
+        self.scroll.setMinimumHeight(height)
+        self.scroll.setMaximumHeight(height)
         self.expand_btn.setText(
             t("sample_prompt_collapse")
             if self._expanded
@@ -278,147 +408,32 @@ class _SamplePromptsWidget(QWidget):
             out["extra"] = " ".join(extra)
         return out
 
-    def _line_edit(self, text: str = "") -> QLineEdit:
-        w = QLineEdit(text)
-        w.textChanged.connect(self.changed)
-        return w
-
-    def _int_spin(
-        self,
-        value: int = 0,
-        *,
-        maximum: int = 8192,
-        default_label: str,
-        unset: int = 0,
-    ) -> QSpinBox:
-        w = QSpinBox()
-        w.setRange(unset, maximum)
-        w.setSpecialValueText(default_label)
-        w.setValue(int(value or unset))
-        w.valueChanged.connect(self.changed)
-        return _no_wheel(w)
-
-    def _seed_spin(self, value: int | None = None) -> QSpinBox:
-        w = QSpinBox()
-        w.setRange(-1, 2_147_483_647)
-        w.setSpecialValueText(t("sample_prompt_default_seed"))
-        w.setValue(-1 if value is None else int(value))
-        w.valueChanged.connect(self.changed)
-        return _no_wheel(w)
-
-    def _float_spin(self, value: float = 0.0, *, default_label: str) -> QDoubleSpinBox:
-        w = QDoubleSpinBox()
-        w.setRange(0.0, 100.0)
-        w.setDecimals(2)
-        w.setSingleStep(0.5)
-        w.setSpecialValueText(default_label)
-        w.setValue(float(value or 0.0))
-        w.valueChanged.connect(self.changed)
-        return _no_wheel(w)
-
     def _add_row(self, data: dict[str, Any]) -> None:
-        row = self.table.rowCount()
-        self.table.insertRow(row)
-        self.table.setCellWidget(
-            row, self._COL_PROMPT, self._line_edit(data.get("prompt", ""))
-        )
-        self.table.setCellWidget(
-            row,
-            self._COL_W,
-            self._int_spin(
-                data.get("width", 0), default_label=t("sample_prompt_default_width")
-            ),
-        )
-        self.table.setCellWidget(
-            row,
-            self._COL_H,
-            self._int_spin(
-                data.get("height", 0), default_label=t("sample_prompt_default_height")
-            ),
-        )
-        self.table.setCellWidget(
-            row,
-            self._COL_STEPS,
-            self._int_spin(
-                data.get("steps", 0),
-                maximum=1000,
-                default_label=t("sample_prompt_default_steps"),
-            ),
-        )
-        self.table.setCellWidget(
-            row, self._COL_SEED, self._seed_spin(data.get("seed"))
-        )
-        self.table.setCellWidget(
-            row,
-            self._COL_SCALE,
-            self._float_spin(
-                data.get("scale", 0.0),
-                default_label=t("sample_prompt_default_cfg"),
-            ),
-        )
-        self.table.setCellWidget(
-            row,
-            self._COL_GUIDANCE,
-            self._float_spin(
-                data.get("guidance", 0.0),
-                default_label=t("sample_prompt_default_guidance"),
-            ),
-        )
-        negative = self._line_edit(data.get("negative", ""))
-        negative.setPlaceholderText(t("sample_prompt_default_negative"))
-        self.table.setCellWidget(
-            row,
-            self._COL_NEGATIVE,
-            negative,
-        )
-        self.table.setCellWidget(
-            row, self._COL_EXTRA, self._line_edit(data.get("extra", ""))
-        )
+        row = _SamplePromptRow(data)
+        row.changed.connect(self.changed.emit)
+        self._rows.append(row)
+        self._row_layout.insertWidget(max(0, self._row_layout.count() - 1), row)
         self.changed.emit()
 
     def _remove_selected(self) -> None:
-        rows = sorted({idx.row() for idx in self.table.selectedIndexes()}, reverse=True)
+        rows = [row for row in self._rows if row.select_box.isChecked()]
         if not rows:
-            rows = [self.table.rowCount() - 1]
+            rows = self._rows[-1:] if self._rows else []
         for row in rows:
-            if row >= 0:
-                self.table.removeRow(row)
-        if self.table.rowCount() == 0:
+            if row in self._rows:
+                self._rows.remove(row)
+                row.setParent(None)
+                row.deleteLater()
+        if not self._rows:
             self._add_row({})
         self.changed.emit()
 
-    def _cell(self, row: int, col: int) -> QWidget:
-        return self.table.cellWidget(row, col)
-
     def value(self) -> list[str]:
         lines: list[str] = []
-        for row in range(self.table.rowCount()):
-            prompt = self._cell(row, self._COL_PROMPT).text().strip()
-            if not prompt:
-                continue
-            parts = [prompt]
-            for col, flag in (
-                (self._COL_W, "w"),
-                (self._COL_H, "h"),
-                (self._COL_STEPS, "s"),
-            ):
-                val = self._cell(row, col).value()
-                if val > 0:
-                    parts.append(f"--{flag} {val}")
-            seed = self._cell(row, self._COL_SEED).value()
-            if seed >= 0:
-                parts.append(f"--d {seed}")
-            for col, flag in ((self._COL_SCALE, "l"), (self._COL_GUIDANCE, "g")):
-                val = self._cell(row, col).value()
-                if val > 0:
-                    parts.append(f"--{flag} {val:g}")
-            negative = self._cell(row, self._COL_NEGATIVE).text().strip()
-            if negative:
-                parts.append(f"--n {negative}")
-            extra = self._cell(row, self._COL_EXTRA).text().strip()
-            if extra:
-                parts.append(extra if extra.startswith("--") else "--" + extra)
-            lines.append(" ".join(parts))
+        for row in self._rows:
+            value = row.value()
+            if value:
+                lines.append(value)
         return lines
 
 

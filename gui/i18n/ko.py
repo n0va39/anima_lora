@@ -199,6 +199,8 @@ STRINGS: dict[str, str] = {
     "sample_prompt_remove": "선택 삭제",
     "sample_prompt_expand": "입력창 키우기",
     "sample_prompt_collapse": "입력창 줄이기",
+    "sample_prompt_select": "선택",
+    "sample_prompt_prompt_placeholder": "프롬프트 본문. 줄바꿈은 여기서 보이고 저장 시 공백으로 정리됩니다.",
     "sample_prompt_hint": "기본값으로 표시된 항목은 프롬프트 줄에 저장하지 않습니다.",
     "sample_prompt_default_width": "기본 512",
     "sample_prompt_default_height": "기본 512",

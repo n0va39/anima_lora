@@ -183,6 +183,19 @@ _GROUPS = {
         "sigma_bucket_boundaries",
         "network_train_unet_only",
     },
+    "Paths": {
+        "pretrained_model_name_or_path",
+        "qwen3",
+        "vae",
+        "path_scope",
+        "output_dir",
+        "output_name",
+        "save_model_as",
+        "source_image_dir",
+        "resized_image_dir",
+        "lora_cache_dir",
+        "path_pattern",
+    },
     "Training": {
         "learning_rate",
         "max_train_epochs",
@@ -226,19 +239,6 @@ _GROUPS = {
         "layer_start",
         "use_cmmd",
     },
-    "Paths": {
-        "pretrained_model_name_or_path",
-        "qwen3",
-        "vae",
-        "path_scope",
-        "output_dir",
-        "output_name",
-        "save_model_as",
-        "source_image_dir",
-        "resized_image_dir",
-        "lora_cache_dir",
-        "path_pattern",
-    },
 }
 _K2G = {k: g for g, ks in _GROUPS.items() for k in ks}
 # target_res is a preprocess-time knob (dual-use: train.py only reads it to size
@@ -265,8 +265,8 @@ _VIRTUAL_KEYS = {"use_valid", "validation_split_num"}
 # collapsible "Advanced" section. Picked to cover the knobs a first-time user
 # realistically wants to touch (rate/length/output, headline architecture
 # size, headline VRAM knobs) without exposing the long tail of regularizer /
-# router / adapter-internal parameters. Keep every Paths-group field here so
-# the GUI does not split path setup between Basic and Advanced.
+# router / adapter-internal parameters. Keep only the common GUI path controls
+# in Basic; concrete path overrides stay in Advanced for users who need them.
 _BASIC = {
     "learning_rate",
     "max_train_epochs",
@@ -280,16 +280,8 @@ _BASIC = {
     "masked_loss",
     "gradient_checkpointing",
     "blocks_to_swap",
-    "pretrained_model_name_or_path",
-    "qwen3",
-    "vae",
     "path_scope",
-    "source_image_dir",
-    "resized_image_dir",
-    "lora_cache_dir",
-    "output_dir",
     "output_name",
-    "save_model_as",
     "path_pattern",
     "drop_lowres_images",
     "min_pixels",

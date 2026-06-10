@@ -203,6 +203,8 @@ STRINGS: dict[str, str] = {
     "sample_prompt_remove": "Remove selected",
     "sample_prompt_expand": "Expand editor",
     "sample_prompt_collapse": "Collapse editor",
+    "sample_prompt_select": "Select",
+    "sample_prompt_prompt_placeholder": "Prompt text. Line breaks are shown here and saved as spaces.",
     "sample_prompt_hint": "Blank/default values are not written to the prompt line.",
     "sample_prompt_default_width": "default 512",
     "sample_prompt_default_height": "default 512",
