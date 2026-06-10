@@ -194,6 +194,11 @@ class _SamplePromptRow(QFrame):
             default_label=t("sample_prompt_default_guidance"),
             tooltip=t("sample_prompt_tip_guidance"),
         )
+        self.flow_shift = self._float_spin(
+            data.get("flow_shift", 0.0),
+            default_label=t("sample_prompt_default_shift"),
+            tooltip=t("sample_prompt_tip_shift"),
+        )
         self.extra = QLineEdit(str(data.get("extra", "")))
         self.extra.setToolTip(t("sample_prompt_tip_extra"))
         self.extra.textChanged.connect(lambda *_: self.changed.emit())
@@ -221,6 +226,11 @@ class _SamplePromptRow(QFrame):
                     t("sample_prompt_col_guidance"),
                     self.guidance,
                     t("sample_prompt_tip_guidance"),
+                ),
+                (
+                    t("sample_prompt_col_shift"),
+                    self.flow_shift,
+                    t("sample_prompt_tip_shift"),
                 ),
                 (t("sample_prompt_col_extra"), self.extra, t("sample_prompt_tip_extra")),
             )
@@ -299,7 +309,11 @@ class _SamplePromptRow(QFrame):
         seed = self.seed.value()
         if seed >= 0:
             parts.append(f"--d {seed}")
-        for widget, flag in ((self.scale, "l"), (self.guidance, "g")):
+        for widget, flag in (
+            (self.scale, "l"),
+            (self.guidance, "g"),
+            (self.flow_shift, "fs"),
+        ):
             val = widget.value()
             if val > 0:
                 parts.append(f"--{flag} {val:g}")
@@ -442,6 +456,8 @@ class _SamplePromptsWidget(QWidget):
                     out["scale"] = float(m.group(1))
                 elif m := re.match(r"g ([\d.]+)$", part, re.IGNORECASE):
                     out["guidance"] = float(m.group(1))
+                elif m := re.match(r"fs ([\d.]+)$", part, re.IGNORECASE):
+                    out["flow_shift"] = float(m.group(1))
                 elif m := re.match(r"n (.+)$", part, re.IGNORECASE):
                     out["negative"] = m.group(1).strip()
                 else:
