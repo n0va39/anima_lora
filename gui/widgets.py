@@ -135,69 +135,105 @@ class _SamplePromptRow(QFrame):
         self.select_box = QCheckBox(t("sample_prompt_select"))
         lay.addWidget(self.select_box, 0, 0, 1, 2)
 
+        prompt_stack = QVBoxLayout()
+        prompt_stack.setContentsMargins(0, 0, 0, 0)
+        prompt_stack.setSpacing(4)
+        lay.addLayout(prompt_stack, 1, 0)
+
         prompt_label = QLabel(t("sample_prompt_col_prompt"))
-        lay.addWidget(prompt_label, 1, 0)
+        prompt_stack.addWidget(prompt_label)
         self.prompt_edit = QPlainTextEdit(str(data.get("prompt", "")))
         self.prompt_edit.setLineWrapMode(QPlainTextEdit.WidgetWidth)
         self.prompt_edit.setMinimumHeight(118)
         self.prompt_edit.setPlaceholderText(t("sample_prompt_prompt_placeholder"))
         self.prompt_edit.textChanged.connect(self.changed.emit)
-        lay.addWidget(self.prompt_edit, 2, 0, 7, 1)
+        prompt_stack.addWidget(self.prompt_edit)
+
+        negative_label = QLabel(t("sample_prompt_col_negative"))
+        negative_label.setToolTip(t("sample_prompt_tip_negative"))
+        prompt_stack.addWidget(negative_label)
+        self.negative = QPlainTextEdit(str(data.get("negative", "")))
+        self.negative.setLineWrapMode(QPlainTextEdit.WidgetWidth)
+        self.negative.setMinimumHeight(72)
+        self.negative.setMaximumHeight(96)
+        self.negative.setPlaceholderText(t("sample_prompt_default_negative"))
+        self.negative.setToolTip(t("sample_prompt_tip_negative"))
+        self.negative.textChanged.connect(self.changed.emit)
+        prompt_stack.addWidget(self.negative)
 
         opts = QGridLayout()
         opts.setContentsMargins(0, 0, 0, 0)
         opts.setHorizontalSpacing(8)
         opts.setVerticalSpacing(4)
-        lay.addLayout(opts, 1, 1, 8, 1)
+        lay.addLayout(opts, 1, 1)
 
         self.width = self._int_spin(
             data.get("width", 0),
             default_label=t("sample_prompt_default_width"),
+            tooltip=t("sample_prompt_tip_width"),
         )
         self.height = self._int_spin(
             data.get("height", 0),
             default_label=t("sample_prompt_default_height"),
+            tooltip=t("sample_prompt_tip_height"),
         )
         self.steps = self._int_spin(
             data.get("steps", 0),
             maximum=1000,
             default_label=t("sample_prompt_default_steps"),
+            tooltip=t("sample_prompt_tip_steps"),
         )
         self.seed = self._seed_spin(data.get("seed"))
         self.scale = self._float_spin(
             data.get("scale", 0.0),
             default_label=t("sample_prompt_default_cfg"),
+            tooltip=t("sample_prompt_tip_cfg"),
         )
         self.guidance = self._float_spin(
             data.get("guidance", 0.0),
             default_label=t("sample_prompt_default_guidance"),
+            tooltip=t("sample_prompt_tip_guidance"),
         )
-        self.negative = QPlainTextEdit(str(data.get("negative", "")))
-        self.negative.setLineWrapMode(QPlainTextEdit.WidgetWidth)
-        self.negative.setMaximumHeight(58)
-        self.negative.setPlaceholderText(t("sample_prompt_default_negative"))
-        self.negative.textChanged.connect(self.changed.emit)
         self.extra = QLineEdit(str(data.get("extra", "")))
+        self.extra.setToolTip(t("sample_prompt_tip_extra"))
         self.extra.textChanged.connect(lambda *_: self.changed.emit())
 
-        for row, (label, widget) in enumerate(
+        for row, (label_text, widget, tooltip) in enumerate(
             (
-                (t("sample_prompt_col_width"), self.width),
-                (t("sample_prompt_col_height"), self.height),
-                (t("sample_prompt_col_steps"), self.steps),
-                (t("sample_prompt_col_seed"), self.seed),
-                (t("sample_prompt_col_cfg"), self.scale),
-                (t("sample_prompt_col_guidance"), self.guidance),
-                (t("sample_prompt_col_negative"), self.negative),
-                (t("sample_prompt_col_extra"), self.extra),
+                (
+                    t("sample_prompt_col_width"),
+                    self.width,
+                    t("sample_prompt_tip_width"),
+                ),
+                (
+                    t("sample_prompt_col_height"),
+                    self.height,
+                    t("sample_prompt_tip_height"),
+                ),
+                (
+                    t("sample_prompt_col_steps"),
+                    self.steps,
+                    t("sample_prompt_tip_steps"),
+                ),
+                (t("sample_prompt_col_seed"), self.seed, t("sample_prompt_tip_seed")),
+                (t("sample_prompt_col_cfg"), self.scale, t("sample_prompt_tip_cfg")),
+                (
+                    t("sample_prompt_col_guidance"),
+                    self.guidance,
+                    t("sample_prompt_tip_guidance"),
+                ),
+                (t("sample_prompt_col_extra"), self.extra, t("sample_prompt_tip_extra")),
             )
         ):
-            opts.addWidget(QLabel(label), row, 0)
+            label = QLabel(label_text)
+            label.setToolTip(tooltip)
+            widget.setToolTip(tooltip)
+            opts.addWidget(label, row, 0)
             opts.addWidget(widget, row, 1)
 
         lay.setColumnStretch(0, 4)
         lay.setColumnStretch(1, 2)
-        self.setMinimumHeight(220)
+        self.setMinimumHeight(300)
 
     def _int_spin(
         self,
@@ -205,6 +241,7 @@ class _SamplePromptRow(QFrame):
         *,
         maximum: int = 8192,
         default_label: str,
+        tooltip: str = "",
         unset: int = 0,
     ) -> QSpinBox:
         w = QSpinBox()
@@ -213,6 +250,8 @@ class _SamplePromptRow(QFrame):
         w.setValue(int(value or unset))
         w.valueChanged.connect(lambda *_: self.changed.emit())
         w.setMinimumWidth(110)
+        if tooltip:
+            w.setToolTip(tooltip)
         return _no_wheel(w)
 
     def _seed_spin(self, value: int | None = None) -> QSpinBox:
@@ -222,9 +261,12 @@ class _SamplePromptRow(QFrame):
         w.setValue(-1 if value is None else int(value))
         w.valueChanged.connect(lambda *_: self.changed.emit())
         w.setMinimumWidth(110)
+        w.setToolTip(t("sample_prompt_tip_seed"))
         return _no_wheel(w)
 
-    def _float_spin(self, value: float = 0.0, *, default_label: str) -> QDoubleSpinBox:
+    def _float_spin(
+        self, value: float = 0.0, *, default_label: str, tooltip: str = ""
+    ) -> QDoubleSpinBox:
         w = QDoubleSpinBox()
         w.setRange(0.0, 100.0)
         w.setDecimals(2)
@@ -233,6 +275,8 @@ class _SamplePromptRow(QFrame):
         w.setValue(float(value or 0.0))
         w.valueChanged.connect(lambda *_: self.changed.emit())
         w.setMinimumWidth(110)
+        if tooltip:
+            w.setToolTip(tooltip)
         return _no_wheel(w)
 
     @staticmethod
@@ -422,6 +466,7 @@ class _SamplePromptsWidget(QWidget):
         for row in rows:
             if row in self._rows:
                 self._rows.remove(row)
+                self._row_layout.removeWidget(row)
                 row.setParent(None)
                 row.deleteLater()
         if not self._rows:
