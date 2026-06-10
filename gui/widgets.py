@@ -163,9 +163,37 @@ class _SamplePromptsWidget(QWidget):
         ):
             hdr.setSectionResizeMode(col, QHeaderView.ResizeToContents)
         self.table.verticalHeader().setVisible(False)
-        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.table.setStyleSheet(
+            """
+            QScrollBar:vertical {
+                background: #242424;
+                width: 14px;
+                margin: 0;
+            }
+            QScrollBar:horizontal {
+                background: #242424;
+                height: 14px;
+                margin: 0;
+            }
+            QScrollBar::handle {
+                background: #7a7a7a;
+                border-radius: 5px;
+                min-height: 24px;
+                min-width: 24px;
+            }
+            QScrollBar::handle:hover {
+                background: #a0a0a0;
+            }
+            QScrollBar::add-line,
+            QScrollBar::sub-line {
+                width: 0;
+                height: 0;
+            }
+            """
+        )
         lay.addWidget(self.table)
 
         row_lay = QHBoxLayout()
@@ -256,11 +284,16 @@ class _SamplePromptsWidget(QWidget):
         return w
 
     def _int_spin(
-        self, value: int = 0, *, maximum: int = 8192, unset: int = 0
+        self,
+        value: int = 0,
+        *,
+        maximum: int = 8192,
+        default_label: str,
+        unset: int = 0,
     ) -> QSpinBox:
         w = QSpinBox()
         w.setRange(unset, maximum)
-        w.setSpecialValueText("")
+        w.setSpecialValueText(default_label)
         w.setValue(int(value or unset))
         w.valueChanged.connect(self.changed)
         return _no_wheel(w)
@@ -268,17 +301,17 @@ class _SamplePromptsWidget(QWidget):
     def _seed_spin(self, value: int | None = None) -> QSpinBox:
         w = QSpinBox()
         w.setRange(-1, 2_147_483_647)
-        w.setSpecialValueText("")
+        w.setSpecialValueText(t("sample_prompt_default_seed"))
         w.setValue(-1 if value is None else int(value))
         w.valueChanged.connect(self.changed)
         return _no_wheel(w)
 
-    def _float_spin(self, value: float = 0.0) -> QDoubleSpinBox:
+    def _float_spin(self, value: float = 0.0, *, default_label: str) -> QDoubleSpinBox:
         w = QDoubleSpinBox()
         w.setRange(0.0, 100.0)
         w.setDecimals(2)
         w.setSingleStep(0.5)
-        w.setSpecialValueText("")
+        w.setSpecialValueText(default_label)
         w.setValue(float(value or 0.0))
         w.valueChanged.connect(self.changed)
         return _no_wheel(w)
@@ -290,25 +323,53 @@ class _SamplePromptsWidget(QWidget):
             row, self._COL_PROMPT, self._line_edit(data.get("prompt", ""))
         )
         self.table.setCellWidget(
-            row, self._COL_W, self._int_spin(data.get("width", 0))
+            row,
+            self._COL_W,
+            self._int_spin(
+                data.get("width", 0), default_label=t("sample_prompt_default_width")
+            ),
         )
         self.table.setCellWidget(
-            row, self._COL_H, self._int_spin(data.get("height", 0))
+            row,
+            self._COL_H,
+            self._int_spin(
+                data.get("height", 0), default_label=t("sample_prompt_default_height")
+            ),
         )
         self.table.setCellWidget(
-            row, self._COL_STEPS, self._int_spin(data.get("steps", 0), maximum=1000)
+            row,
+            self._COL_STEPS,
+            self._int_spin(
+                data.get("steps", 0),
+                maximum=1000,
+                default_label=t("sample_prompt_default_steps"),
+            ),
         )
         self.table.setCellWidget(
             row, self._COL_SEED, self._seed_spin(data.get("seed"))
         )
         self.table.setCellWidget(
-            row, self._COL_SCALE, self._float_spin(data.get("scale", 0.0))
+            row,
+            self._COL_SCALE,
+            self._float_spin(
+                data.get("scale", 0.0),
+                default_label=t("sample_prompt_default_cfg"),
+            ),
         )
         self.table.setCellWidget(
-            row, self._COL_GUIDANCE, self._float_spin(data.get("guidance", 0.0))
+            row,
+            self._COL_GUIDANCE,
+            self._float_spin(
+                data.get("guidance", 0.0),
+                default_label=t("sample_prompt_default_guidance"),
+            ),
         )
+        negative = self._line_edit(data.get("negative", ""))
+        negative.setPlaceholderText(t("sample_prompt_default_negative"))
         self.table.setCellWidget(
-            row, self._COL_NEGATIVE, self._line_edit(data.get("negative", ""))
+            row,
+            self._COL_NEGATIVE,
+            negative,
         )
         self.table.setCellWidget(
             row, self._COL_EXTRA, self._line_edit(data.get("extra", ""))
