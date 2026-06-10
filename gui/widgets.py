@@ -9,6 +9,7 @@ widget code lives apart from the Qt-free config logic.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from PySide6.QtCore import Qt, Signal
@@ -16,12 +17,17 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
+    QHeaderView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
+    QPushButton,
     QSpinBox,
+    QTableWidget,
     QWidget,
+    QVBoxLayout,
 )
 
 from gui.i18n import t
@@ -105,6 +111,232 @@ class _TargetResWidget(QWidget):
         return out or [1024]
 
 
+class _SamplePromptsWidget(QWidget):
+    """Structured editor for train.py's one-line sample prompt syntax."""
+
+    changed = Signal()
+
+    _COL_PROMPT = 0
+    _COL_W = 1
+    _COL_H = 2
+    _COL_STEPS = 3
+    _COL_SEED = 4
+    _COL_SCALE = 5
+    _COL_GUIDANCE = 6
+    _COL_NEGATIVE = 7
+    _COL_EXTRA = 8
+
+    def __init__(self, prompts) -> None:
+        super().__init__()
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+
+        self.table = QTableWidget(0, 9)
+        self.table.setHorizontalHeaderLabels(
+            [
+                t("sample_prompt_col_prompt"),
+                t("sample_prompt_col_width"),
+                t("sample_prompt_col_height"),
+                t("sample_prompt_col_steps"),
+                t("sample_prompt_col_seed"),
+                t("sample_prompt_col_cfg"),
+                t("sample_prompt_col_guidance"),
+                t("sample_prompt_col_negative"),
+                t("sample_prompt_col_extra"),
+            ]
+        )
+        hdr = self.table.horizontalHeader()
+        hdr.setSectionResizeMode(self._COL_PROMPT, QHeaderView.Stretch)
+        hdr.setSectionResizeMode(self._COL_NEGATIVE, QHeaderView.Stretch)
+        hdr.setSectionResizeMode(self._COL_EXTRA, QHeaderView.ResizeToContents)
+        for col in (
+            self._COL_W,
+            self._COL_H,
+            self._COL_STEPS,
+            self._COL_SEED,
+            self._COL_SCALE,
+            self._COL_GUIDANCE,
+        ):
+            hdr.setSectionResizeMode(col, QHeaderView.ResizeToContents)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setMaximumHeight(220)
+        lay.addWidget(self.table)
+
+        row_lay = QHBoxLayout()
+        row_lay.setContentsMargins(0, 0, 0, 0)
+        add_btn = QPushButton(t("sample_prompt_add"))
+        add_btn.clicked.connect(lambda: self._add_row({}))
+        row_lay.addWidget(add_btn)
+        remove_btn = QPushButton(t("sample_prompt_remove"))
+        remove_btn.clicked.connect(self._remove_selected)
+        row_lay.addWidget(remove_btn)
+        row_lay.addStretch(1)
+        hint = QLabel(t("sample_prompt_hint"))
+        hint.setStyleSheet("color:#888;")
+        row_lay.addWidget(hint)
+        lay.addLayout(row_lay)
+
+        rows = self._parse_prompts(prompts)
+        if rows:
+            for row in rows:
+                self._add_row(row)
+        else:
+            self._add_row({})
+
+    @staticmethod
+    def _parse_prompts(prompts) -> list[dict[str, Any]]:
+        if isinstance(prompts, (list, tuple)):
+            lines = [str(p).strip() for p in prompts]
+        elif prompts is None:
+            lines = []
+        else:
+            lines = [ln.strip() for ln in str(prompts).splitlines()]
+        return [
+            _SamplePromptsWidget._parse_line(ln)
+            for ln in lines
+            if ln and not ln.startswith("#")
+        ]
+
+    @staticmethod
+    def _parse_line(line: str) -> dict[str, Any]:
+        parts = line.split(" --")
+        out: dict[str, Any] = {"prompt": parts[0].strip()}
+        extra: list[str] = []
+        for part in parts[1:]:
+            try:
+                if m := re.match(r"w (\d+)$", part, re.IGNORECASE):
+                    out["width"] = int(m.group(1))
+                elif m := re.match(r"h (\d+)$", part, re.IGNORECASE):
+                    out["height"] = int(m.group(1))
+                elif m := re.match(r"s (\d+)$", part, re.IGNORECASE):
+                    out["steps"] = int(m.group(1))
+                elif m := re.match(r"d (\d+)$", part, re.IGNORECASE):
+                    out["seed"] = int(m.group(1))
+                elif m := re.match(r"l ([\d.]+)$", part, re.IGNORECASE):
+                    out["scale"] = float(m.group(1))
+                elif m := re.match(r"g ([\d.]+)$", part, re.IGNORECASE):
+                    out["guidance"] = float(m.group(1))
+                elif m := re.match(r"n (.+)$", part, re.IGNORECASE):
+                    out["negative"] = m.group(1).strip()
+                else:
+                    extra.append("--" + part.strip())
+            except ValueError:
+                extra.append("--" + part.strip())
+        if extra:
+            out["extra"] = " ".join(extra)
+        return out
+
+    def _line_edit(self, text: str = "") -> QLineEdit:
+        w = QLineEdit(text)
+        w.textChanged.connect(self.changed)
+        return w
+
+    def _int_spin(
+        self, value: int = 0, *, maximum: int = 8192, unset: int = 0
+    ) -> QSpinBox:
+        w = QSpinBox()
+        w.setRange(unset, maximum)
+        w.setSpecialValueText("")
+        w.setValue(int(value or unset))
+        w.valueChanged.connect(self.changed)
+        return _no_wheel(w)
+
+    def _seed_spin(self, value: int | None = None) -> QSpinBox:
+        w = QSpinBox()
+        w.setRange(-1, 2_147_483_647)
+        w.setSpecialValueText("")
+        w.setValue(-1 if value is None else int(value))
+        w.valueChanged.connect(self.changed)
+        return _no_wheel(w)
+
+    def _float_spin(self, value: float = 0.0) -> QDoubleSpinBox:
+        w = QDoubleSpinBox()
+        w.setRange(0.0, 100.0)
+        w.setDecimals(2)
+        w.setSingleStep(0.5)
+        w.setSpecialValueText("")
+        w.setValue(float(value or 0.0))
+        w.valueChanged.connect(self.changed)
+        return _no_wheel(w)
+
+    def _add_row(self, data: dict[str, Any]) -> None:
+        row = self.table.rowCount()
+        self.table.insertRow(row)
+        self.table.setCellWidget(
+            row, self._COL_PROMPT, self._line_edit(data.get("prompt", ""))
+        )
+        self.table.setCellWidget(
+            row, self._COL_W, self._int_spin(data.get("width", 0))
+        )
+        self.table.setCellWidget(
+            row, self._COL_H, self._int_spin(data.get("height", 0))
+        )
+        self.table.setCellWidget(
+            row, self._COL_STEPS, self._int_spin(data.get("steps", 0), maximum=1000)
+        )
+        self.table.setCellWidget(
+            row, self._COL_SEED, self._seed_spin(data.get("seed"))
+        )
+        self.table.setCellWidget(
+            row, self._COL_SCALE, self._float_spin(data.get("scale", 0.0))
+        )
+        self.table.setCellWidget(
+            row, self._COL_GUIDANCE, self._float_spin(data.get("guidance", 0.0))
+        )
+        self.table.setCellWidget(
+            row, self._COL_NEGATIVE, self._line_edit(data.get("negative", ""))
+        )
+        self.table.setCellWidget(
+            row, self._COL_EXTRA, self._line_edit(data.get("extra", ""))
+        )
+        self.changed.emit()
+
+    def _remove_selected(self) -> None:
+        rows = sorted({idx.row() for idx in self.table.selectedIndexes()}, reverse=True)
+        if not rows:
+            rows = [self.table.rowCount() - 1]
+        for row in rows:
+            if row >= 0:
+                self.table.removeRow(row)
+        if self.table.rowCount() == 0:
+            self._add_row({})
+        self.changed.emit()
+
+    def _cell(self, row: int, col: int) -> QWidget:
+        return self.table.cellWidget(row, col)
+
+    def value(self) -> list[str]:
+        lines: list[str] = []
+        for row in range(self.table.rowCount()):
+            prompt = self._cell(row, self._COL_PROMPT).text().strip()
+            if not prompt:
+                continue
+            parts = [prompt]
+            for col, flag in (
+                (self._COL_W, "w"),
+                (self._COL_H, "h"),
+                (self._COL_STEPS, "s"),
+            ):
+                val = self._cell(row, col).value()
+                if val > 0:
+                    parts.append(f"--{flag} {val}")
+            seed = self._cell(row, self._COL_SEED).value()
+            if seed >= 0:
+                parts.append(f"--d {seed}")
+            for col, flag in ((self._COL_SCALE, "l"), (self._COL_GUIDANCE, "g")):
+                val = self._cell(row, col).value()
+                if val > 0:
+                    parts.append(f"--{flag} {val:g}")
+            negative = self._cell(row, self._COL_NEGATIVE).text().strip()
+            if negative:
+                parts.append(f"--n {negative}")
+            extra = self._cell(row, self._COL_EXTRA).text().strip()
+            if extra:
+                parts.append(extra if extra.startswith("--") else "--" + extra)
+            lines.append(" ".join(parts))
+        return lines
+
+
 def _no_wheel(w: QWidget) -> QWidget:
     """Stop a hovered combo/spin from changing value (and stealing focus) on
     mouse-wheel scroll — otherwise scrolling the form silently edits whichever
@@ -119,20 +351,7 @@ def _widget(v: Any, key: str = "") -> QWidget:
         sel = v if isinstance(v, (list, tuple)) else ([v] if v else [1024])
         return _TargetResWidget(sel)
     if key == "sample_prompts":
-        # One preview prompt per line. Stored in TOML as a string (single line)
-        # or an array (multi-line); train.py materializes either into the
-        # sample_prompts.txt file the sampler reads.
-        w = QPlainTextEdit()
-        if isinstance(v, (list, tuple)):
-            text = "\n".join(str(p) for p in v)
-        elif v is None:
-            text = ""
-        else:
-            text = str(v)
-        w.setPlainText(text)
-        w.setPlaceholderText("1girl, solo, ...\n(one preview prompt per line)")
-        w.setMaximumHeight(120)
-        return w
+        return _SamplePromptsWidget(v)
     if key == "attn_mode":
         w = QComboBox()
         w.addItems(_ATTN_MODES)
@@ -185,6 +404,8 @@ def _widget(v: Any, key: str = "") -> QWidget:
 
 def _read(w: QWidget, orig: Any = None) -> Any:
     if isinstance(w, _TargetResWidget):
+        return w.value()
+    if isinstance(w, _SamplePromptsWidget):
         return w.value()
     if isinstance(w, QPlainTextEdit):
         # sample_prompts box → list of non-empty, non-comment lines.

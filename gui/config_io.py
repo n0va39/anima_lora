@@ -197,6 +197,8 @@ _GROUPS = {
         "discrete_flow_shift",
         "use_valid",
         "validation_split_num",
+    },
+    "Samples": {
         "sample_prompts",
         "sample_every_n_epochs",
         "sample_at_first",
@@ -224,6 +226,7 @@ _GROUPS = {
         "pretrained_model_name_or_path",
         "qwen3",
         "vae",
+        "path_scope",
         "output_dir",
         "output_name",
         "save_model_as",
@@ -259,8 +262,9 @@ _VIRTUAL_KEYS = {"use_valid", "validation_split_num"}
 # Fields shown under the "Basic" section. Everything else falls under the
 # collapsible "Advanced" section. Picked to cover the knobs a first-time user
 # realistically wants to touch (rate/length/output, headline architecture
-# size, headline VRAM knobs, dataset/output paths) without exposing the long
-# tail of regularizer / router / adapter-internal parameters.
+# size, headline VRAM knobs) without exposing the long tail of regularizer /
+# router / adapter-internal parameters. Keep every Paths-group field here so
+# the GUI does not split path setup between Basic and Advanced.
 _BASIC = {
     "learning_rate",
     "max_train_epochs",
@@ -269,14 +273,20 @@ _BASIC = {
     "network_alpha",
     "network_weights",
     "num_experts",
-    "output_name",
     "use_shuffled_caption_variants",
     "caption_dropout_rate",
     "gradient_checkpointing",
     "blocks_to_swap",
+    "pretrained_model_name_or_path",
+    "qwen3",
+    "vae",
+    "path_scope",
     "source_image_dir",
+    "resized_image_dir",
     "lora_cache_dir",
     "output_dir",
+    "output_name",
+    "save_model_as",
     "path_pattern",
     "drop_lowres_images",
     "min_pixels",
@@ -435,6 +445,17 @@ def merged_gui_variant_preset(variant: str, preset: str) -> tuple[dict, dict[str
     for k, v in meth.items():
         merged[k] = v
         origin[k] = "method"
+
+    # GUI-only path scope is stored under [variant] so CLI config loading strips
+    # it with the rest of the variant metadata. The Config tab surfaces it as a
+    # normal field and expands it into concrete paths at submit time.
+    meta = meth.get("variant")
+    if isinstance(meta, dict) and isinstance(meta.get("path_scope"), str):
+        merged["path_scope"] = meta["path_scope"]
+        origin["path_scope"] = "method"
+    elif "path_scope" not in merged:
+        merged["path_scope"] = ""
+        origin["path_scope"] = "base"
 
     # Inject the `use_valid` virtual key derived from the [[datasets]] block.
     # The variant file may shallow-override base.toml's validation_split_num /
