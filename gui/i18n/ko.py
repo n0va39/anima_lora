@@ -223,6 +223,15 @@ STRINGS: dict[str, str] = {
     "sample_prompt_tip_shift": "샘플링 시그마 스케줄의 flow shift(`--fs`)입니다. 비우면 train.py 기본값 3.0을 사용합니다.",
     "sample_prompt_tip_negative": "이 샘플에만 적용할 네거티브 프롬프트(`--n`)입니다.",
     "sample_prompt_tip_extra": "추가 sample 인자입니다. 입력한 원문을 그대로 보존합니다.",
+    "sample_prompt_compile_title": "샘플 프롬프트 해상도 비호환",
+    "sample_prompt_compile_range": "target_res=[{target_res}]에서 torch.compile 샘플 토큰 허용 범위는 {lo}–{hi}입니다.",
+    "sample_prompt_compile_bad_item": "프롬프트 {idx}: {width}x{height} = {tokens} 토큰",
+    "sample_prompt_compile_body": (
+        "현재 torch.compile 토큰 범위를 벗어나는 샘플 프롬프트 해상도가 있습니다:\n\n"
+        "{items}\n\n"
+        "샘플 W/H를 버킷 호환 해상도로 바꾸거나, 해당 target_res 티어를 포함해 "
+        "전처리/학습하거나, 샘플 렌더링을 끄거나, torch_compile을 끄세요."
+    ),
     "finished": "--- 완료 (종료 코드 {code}) ---",
     "starting": "시작 중… (torch / accelerate 로딩)",
     "queue_submitting": "{variant}을(를) 학습 daemon 큐에 추가 중…",

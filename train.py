@@ -175,6 +175,56 @@ def _normalize_sample_args(args):
     args.sample_prompts = prompt_path
 
 
+def _sample_prompt_dimensions(prompt_dict: dict[str, Any]) -> tuple[int, int]:
+    width = int(prompt_dict.get("width", 512) or 512)
+    height = int(prompt_dict.get("height", 512) or 512)
+    width = max(64, width - width % 16)
+    height = max(64, height - height % 16)
+    return width, height
+
+
+def _sample_token_count(width: int, height: int) -> int:
+    return (width // 16) * (height // 16)
+
+
+def _validate_sample_compile_range(args, seq_range: tuple[int, int] | None) -> None:
+    """Fail early when sample prompts exceed the compiled sequence range."""
+    if not getattr(args, "torch_compile", False):
+        return
+    if not seq_range:
+        return
+    if not (
+        args.sample_prompts
+        and (
+            args.sample_at_first
+            or args.sample_every_n_steps
+            or args.sample_every_n_epochs
+        )
+    ):
+        return
+
+    lo, hi = seq_range
+    bad: list[str] = []
+    for prompt_dict in train_util.load_prompts(args.sample_prompts):
+        width, height = _sample_prompt_dimensions(prompt_dict)
+        tokens = _sample_token_count(width, height)
+        if tokens < lo or tokens > hi:
+            idx = int(prompt_dict.get("enum", len(bad))) + 1
+            bad.append(f"prompt {idx}: {width}x{height} = {tokens} tokens")
+
+    if not bad:
+        return
+
+    raise ValueError(
+        "Sample prompt resolution is outside the current torch.compile token "
+        f"range ({lo}-{hi} tokens): "
+        + "; ".join(bad)
+        + ". Use a sample width/height from the same preprocessed bucket tier, "
+        "preprocess/train with a matching target_res tier, disable sampling, "
+        "or disable torch_compile."
+    )
+
+
 class AnimaTrainer:
     def __init__(self):
         self.sample_prompts_te_outputs = None
@@ -2100,6 +2150,8 @@ class AnimaTrainer:
         self._compile_token_budget = self._derive_token_budget(
             train_dataset_group, val_dataset_group
         )
+        _, compile_seq_range = self._compile_token_budget
+        _validate_sample_compile_range(args, compile_seq_range)
 
         if args.debug_dataset:
             train_dataset_group.set_current_strategies()  # dataset needs to know the strategies explicitly
