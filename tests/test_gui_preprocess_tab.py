@@ -112,6 +112,18 @@ def test_preprocess_tab_persists_masking_settings_to_variant():
         assert not tab._dirty
         assert not tab.save_btn.text().endswith(" *")
 
+        assert tab.persist_preprocess_inputs()
+        meta_after_preprocess_save = _load(path)["variant"]
+        for key in (
+            "run_sam_mask",
+            "run_mit_mask",
+            "mask_path_pattern",
+            "mask_rules",
+            "mit_text_threshold",
+            "mit_dilate",
+        ):
+            assert meta_after_preprocess_save[key] == meta[key]
+
         if tab is not None:
             tab.deleteLater()
 

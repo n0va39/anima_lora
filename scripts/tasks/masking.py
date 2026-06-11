@@ -26,6 +26,7 @@ from ._common import PY, ROOT, run
 MASK_OUTPUT_DIR = ROOT / "post_image_dataset" / "masks"
 RESIZED_IMAGE_DIR = ROOT / "post_image_dataset" / "resized"
 SAM_CONFIG = ROOT / "configs" / "sam_mask.yaml"
+_UNSET = object()
 
 
 def _runtime_sam_config() -> dict | None:
@@ -46,14 +47,15 @@ def _runtime_sam_config() -> dict | None:
     return cfg
 
 
-def _load_sam_config() -> dict:
-    runtime = _runtime_sam_config()
+def _load_sam_config(runtime: dict | None | object = _UNSET) -> dict:
+    if runtime is _UNSET:
+        runtime = _runtime_sam_config()
     if runtime is not None:
         return runtime
     try:
         import yaml
 
-        with open(SAM_CONFIG) as f:
+        with open(SAM_CONFIG, encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     except (OSError, ImportError):
         return {}
@@ -70,8 +72,8 @@ def _config_path_pattern(cfg: dict) -> str | None:
     return pattern if pattern and pattern != "*" else None
 
 
-def _sam_config_path(cfg: dict, tmp_root: str) -> str:
-    if _runtime_sam_config() is None:
+def _sam_config_path(cfg: dict, tmp_root: str, *, from_env: bool) -> str:
+    if not from_env:
         return "configs/sam_mask.yaml"
     path = Path(tmp_root) / "sam_mask.yaml"
     path.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
@@ -142,11 +144,16 @@ def cmd_mask(extra):
     if not (run_sam or run_mit):
         print("Both SAM and MIT masking are disabled — nothing to do.")
         return
-    sam_cfg = _load_sam_config()
+    runtime_sam_cfg = _runtime_sam_config()
+    sam_cfg = _load_sam_config(runtime_sam_cfg)
     pattern = _config_path_pattern(sam_cfg)
     pattern_args = ["--path-pattern", pattern] if pattern else []
     with tempfile.TemporaryDirectory(prefix="anima-masks-") as tmp_root:
-        sam_config_path = _sam_config_path(sam_cfg, tmp_root)
+        sam_config_path = _sam_config_path(
+            sam_cfg,
+            tmp_root,
+            from_env=runtime_sam_cfg is not None,
+        )
         merge_sources: list[str] = []
         if run_sam:
             tmp_sam = Path(tmp_root) / "sam"

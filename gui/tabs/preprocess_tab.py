@@ -16,6 +16,8 @@ Settings persist to:
   low-res filtering, caption shuffle/dropout, and mask settings.
 - ``configs/sam_mask.yaml`` — SAM prompts / threshold / dilate (existing
   canonical CLI fallback, read directly by ``scripts/preprocess/generate_masks.py``).
+  GUI Save no longer writes this file; direct terminal ``make mask`` will not
+  see GUI-profile mask settings unless the user edits the YAML manually.
 """
 
 from __future__ import annotations
@@ -125,13 +127,6 @@ def _load_settings() -> dict:
         return {}
 
 
-def _save_settings(updates: dict) -> None:
-    """Merge ``updates`` into the existing settings JSON, preserving other keys."""
-    data = _load_settings()
-    data.update(updates)
-    SETTINGS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
-
-
 def _load_preprocess_toml() -> dict:
     """Read configs/preprocess.toml (the preprocess-only knobs split out of
     base.toml). Returns {} if absent/unparseable so callers fall back to
@@ -152,20 +147,6 @@ def _load_sam_yaml() -> dict:
         return yaml.safe_load(SAM_YAML.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError):
         return {}
-
-
-class _IndentedListDumper(yaml.SafeDumper):
-    """SafeDumper that indents list items under mapping keys.
-
-    PyYAML's default dumper writes list items flush with the parent key,
-    which is valid YAML but doesn't match the canonical sam_mask.yaml
-    formatting (2-space indent on the dash). Overriding ``increase_indent``
-    to disable ``indentless`` mode gives us the indented form so saving
-    from the GUI doesn't churn the file's whitespace.
-    """
-
-    def increase_indent(self, flow=False, indentless=False):  # noqa: D401
-        return super().increase_indent(flow, False)
 
 
 def _load_rules(sam_yaml: dict) -> list[dict]:
@@ -198,32 +179,6 @@ def _load_rules(sam_yaml: dict) -> list[dict]:
         }
         for r in raw
     ]
-
-
-def _save_sam_yaml(
-    rules: list[dict],
-    path_pattern: str = DEFAULT_MASK_PATH_PATTERN,
-) -> None:
-    SAM_YAML.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        # Each rule routes a subset of images (by path_pattern) to its prompt
-        # set; `prompts` mask OUT, `focus_prompts` keep ONLY. Matching rules
-        # compose. See scripts/preprocess/generate_masks.py for the full rule.
-        "rules": rules,
-        # Read by scripts/tasks/masking.py and forwarded to BOTH the SAM and
-        # MIT backends; "*" (the default) masks every resized image.
-        "path_pattern": path_pattern or DEFAULT_MASK_PATH_PATTERN,
-    }
-    text = yaml.dump(
-        payload,
-        Dumper=_IndentedListDumper,
-        default_flow_style=False,
-        sort_keys=False,
-    )
-    # Blank line before the trailing global path_pattern, matching the
-    # canonical layout's separation between the list and the scalar settings.
-    text = text.replace("\npath_pattern:", "\n\npath_pattern:", 1)
-    SAM_YAML.write_text(text, encoding="utf-8")
 
 
 def _filtered_files(root: Path, pattern: str | None, predicate) -> list[Path]:
