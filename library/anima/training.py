@@ -193,87 +193,6 @@ def add_anima_training_arguments(parser: argparse.ArgumentParser):
         "Requires --cache_text_encoder_outputs. Incompatible with LoRA training for the LLM adapter.",
     )
     parser.add_argument(
-        "--use_ip_adapter",
-        action="store_true",
-        help="Enable IP-Adapter image conditioning (decoupled cross-attention). "
-        "Requires the network module to expose set_ip_tokens (e.g. networks.methods.ip_adapter). "
-        "Live mode needs --no-use_vae_cache so batch['images'] carries the raw "
-        "reference; pre-cache mode (--ip_features_cache_to_disk) reads PE features "
-        "from sibling .safetensors and is compatible with --use_vae_cache.",
-    )
-    parser.add_argument(
-        "--ip_features_cache_to_disk",
-        action="store_true",
-        help="Read image features from sibling sidecars "
-        "({stem}_anima_{ip_encoder}.safetensors, produced by `make preprocess-pe`) "
-        "instead of running the vision encoder live. "
-        "Compatible with --use_vae_cache. Missing cache files raise FileNotFoundError.",
-    )
-    parser.add_argument(
-        "--ip_image_drop_p",
-        type=float,
-        default=0.1,
-        help="IP-Adapter image-conditioning dropout probability per batch (CFG dropout for image branch). "
-        "Independent of text-side caption_dropout_rate; default 0.1 matches the original IP-Adapter recipe.",
-    )
-    parser.add_argument(
-        "--ip_encoder",
-        type=str,
-        default="pe",
-        help="IP-Adapter vision encoder name (registered in library/vision/encoders.py). "
-        "Default 'pe' = PE-Core-L14-336 (dynamic resolution).",
-    )
-    parser.add_argument(
-        "--ip_diagnostics_epochs",
-        type=int,
-        default=1,
-        help="Number of epochs to keep IP-Adapter per-block diagnostics on for. "
-        "Each enabled epoch adds 56 fp32 norm reductions per step (2 per block × 28 blocks). "
-        "Default 1 logs the initial summary plus epoch-0 ratios, then auto-disables. "
-        "Set to 0 to skip even the warm-up logs, or a large number to keep them on.",
-    )
-    parser.add_argument(
-        "--ip_pair_mode",
-        type=str,
-        default="self",
-        choices=["self", "identity", "identity_cross_artist"],
-        help="IP-Adapter distinct-pair (identity) training mode. 'self' (default) "
-        "= reference == VAE target (legacy, bit-identical). 'identity' draws the "
-        "IP-path reference from a DIFFERENT image of the target's identity "
-        "(character → franchise → artist back-off via the caption index), "
-        "removing the self-pair copy shortcut. 'identity_cross_artist' additionally "
-        "requires character/franchise matches from a different artist (drops the "
-        "source style). Requires --ip_features_cache_to_disk. "
-        "See docs/proposal/ip-adapter-identity-pairs.md.",
-    )
-    parser.add_argument(
-        "--ip_pair_prob",
-        type=float,
-        default=0.8,
-        help="Fraction of steps that draw a distinct reference under "
-        "--ip_pair_mode!=self; the rest self-pair (keeps some self-pairs in the "
-        "mix — reference recipes warm up better that way). Default 0.8.",
-    )
-    parser.add_argument(
-        "--ip_pair_min_level",
-        type=str,
-        default="artist",
-        choices=["character", "copyright", "artist"],
-        help="Loosest tier the identity-pair sampler will back off to before "
-        "self-pairing. 'character' = same-character only; 'artist' (default) = "
-        "full character → franchise → artist back-off.",
-    )
-    parser.add_argument(
-        "--ip_pair_caption_strip_p",
-        type=float,
-        default=0.0,
-        help="Probability of dropping the target's character/copyright tokens "
-        "from the caption on distinct-pair steps, forcing identity through the IP "
-        "image path rather than the text. INERT while use_text_cache=true "
-        "(the cached embedding still carries identity) — set it false to enable. "
-        "Default 0.0 (off).",
-    )
-    parser.add_argument(
         "--use_easycontrol",
         action="store_true",
         help="Enable EasyControl image conditioning (extended self-attn KV with "
@@ -299,6 +218,42 @@ def add_anima_training_arguments(parser: argparse.ArgumentParser):
         "Use a small positive value (e.g. 0.3-0.7) to weaken cond's blueprint "
         "dominance and force text to carry the high-frequency residual; sigma=0 "
         "stays in the training distribution so clean-cond inference still works.",
+    )
+    parser.add_argument(
+        "--cond_diff_loss",
+        action="store_true",
+        help="Weight the per-pixel FM loss by the cond↔target latent difference "
+        "(library/training/losses.py::compute_cond_diff_weight). For paired "
+        "cond≠target tasks (cond_cache_dir subsets: sanitize / near-twin pose / "
+        "hair-color twins) where the pair differs only in a narrow edit region — "
+        "concentrates gradient there instead of on the copy-through behavior the "
+        "extended attention already provides. Per-image mean-normalized (pure "
+        "gradient reallocation, loss scale unchanged). No-op on batches without "
+        "cond_latents. NOT for colorize (gray→color differs everywhere; the map "
+        "degenerates to ~uniform).",
+    )
+    parser.add_argument(
+        "--cond_diff_loss_floor",
+        type=float,
+        default=0.2,
+        help="Minimum (pre-normalization) weight outside the edit region. Keeps "
+        "the copy-everything-else anchor; 0 would license drift outside the "
+        "bubble. Default 0.2.",
+    )
+    parser.add_argument(
+        "--cond_diff_loss_blur",
+        type=float,
+        default=1.5,
+        help="Gaussian sigma (latent px) applied to the diff map so the weight "
+        "covers bubble interiors plus a halo, not just strokes/outlines. "
+        "Default 1.5.",
+    )
+    parser.add_argument(
+        "--cond_diff_loss_quantile",
+        type=float,
+        default=0.9,
+        help="Per-image robust scale for the diff map: values at/above this "
+        "quantile saturate to full weight. Default 0.9.",
     )
     # --- BYG (Bootstrap Your Generator) unpaired editing ----------------------
     # An owning-step method: a plain rank-64 LoRA trained with a multi-forward

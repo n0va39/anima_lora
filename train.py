@@ -413,75 +413,6 @@ class AnimaTrainer:
                     dataset.restrict_to_byg_tuples()
                 val_dataset_group.refresh_concat_state()
 
-        # Propagate IP-Adapter feature-cache flag so datasets load
-        # {stem}_anima_{encoder}.safetensors sidecars into batch["ip_features"].
-        if getattr(args, "ip_features_cache_to_disk", False):
-            ip_encoder = getattr(args, "ip_encoder", "pe")
-            for dataset in train_dataset_group.datasets:
-                dataset.ip_features_cache_to_disk = True
-                dataset.ip_features_encoder = ip_encoder
-            if val_dataset_group is not None:
-                for dataset in val_dataset_group.datasets:
-                    dataset.ip_features_cache_to_disk = True
-                    dataset.ip_features_encoder = ip_encoder
-
-        # IP-Adapter live PE encoding (PE-LoRA, or no cached features) needs
-        # batch["images"] every step. With cache_latents=true the dataset
-        # would normally skip image loading; this flag forces it to keep
-        # decoding the source image alongside the cached latent so the live
-        # PE forward has its input. VAE encoding still runs from cache.
-        if getattr(args, "use_ip_adapter", False) and not getattr(
-            args, "ip_features_cache_to_disk", False
-        ):
-            for dataset in train_dataset_group.datasets:
-                dataset.force_load_images_for_ip = True
-            if val_dataset_group is not None:
-                for dataset in val_dataset_group.datasets:
-                    dataset.force_load_images_for_ip = True
-
-        # IP-Adapter distinct-pair (identity) training. When opted in
-        # (ip_pair_mode != "self") each dataset draws the IP-path reference from
-        # a *different* image of the target's identity instead of the target
-        # itself, removing the self-pair copy shortcut. Requires cached PE
-        # features (the pairing is a stem swap on disk). See
-        # docs/proposal/ip-adapter-identity-pairs.md.
-        ip_pair_mode = str(getattr(args, "ip_pair_mode", "self") or "self")
-        if getattr(args, "use_ip_adapter", False) and ip_pair_mode != "self":
-            if not getattr(args, "ip_features_cache_to_disk", False):
-                raise ValueError(
-                    "ip_pair_mode requires ip_features_cache_to_disk=true "
-                    "(distinct-pair training swaps which stem's cached PE "
-                    "features feed the IP path). PE-LoRA's live encoder is "
-                    "incompatible — set pe_lora_enabled=false."
-                )
-            index_path = getattr(
-                args,
-                "ip_pair_index",
-                "post_image_dataset/captions/caption_index.json",
-            )
-            if not os.path.exists(index_path):
-                raise FileNotFoundError(
-                    f"ip_pair_index not found: {index_path}. Run `make caption-index`."
-                )
-            pair_kwargs = dict(
-                index_path=index_path,
-                mode=ip_pair_mode,
-                prob=float(getattr(args, "ip_pair_prob", 0.8)),
-                min_level=str(getattr(args, "ip_pair_min_level", "artist")),
-                caption_strip_p=float(getattr(args, "ip_pair_caption_strip_p", 0.0)),
-            )
-            for dataset in train_dataset_group.datasets:
-                dataset.setup_identity_pairs(is_validation=False, **pair_kwargs)
-            if val_dataset_group is not None:
-                for dataset in val_dataset_group.datasets:
-                    dataset.setup_identity_pairs(is_validation=True, **pair_kwargs)
-            logger.info(
-                f"IP-Adapter distinct pairs: mode={ip_pair_mode} "
-                f"prob={pair_kwargs['prob']} min_level={pair_kwargs['min_level']} "
-                f"caption_strip_p={pair_kwargs['caption_strip_p']} "
-                f"index={index_path}"
-            )
-
         # Soft-tokens contrastive negatives. The objective's knobs live in
         # ``network_args`` (see configs/methods/soft_tokens.toml); preview them
         # here to decide whether
@@ -1630,6 +1561,65 @@ class AnimaTrainer:
         counts = token_counts_for_resos(resos)
         return len(counts), (min(counts), max(counts))
 
+    def _maybe_clear_stale_compile_cache(self, signature: str) -> None:
+        """Wipe the torch inductor cache when the compile signature changed.
+
+        The persistent inductor ``FxGraphCache`` can hand back a graph whose
+        dynamic-seq shape guards were specialized for a DIFFERENT token-family set
+        than this run needs. Concretely: a prior single-tier 1024 run leaves a
+        graph floored at ``seq >= 4032``; a later 896+1024 run reuses it and then
+        raises ``ConstraintViolationError`` the moment a 3000-token (896-tier)
+        batch arrives. torch's cache key doesn't catch this cross-run mismatch, so
+        we record the families we compiled for in a marker file and clear the
+        cache once whenever the signature changes (re-preprocessing with different
+        ``target_res`` tiers is what changes it).
+
+        First run (no marker yet) also clears once: users updating from before the
+        tier fix typically carry a cache compiled against the old (buggy) tier set,
+        so a one-time wipe is the safe baseline. Unchanged signature reuses the
+        cache (no recompile).
+        """
+        import shutil
+
+        from library.env import resolve_under_home
+
+        marker = resolve_under_home("output/.torch_compile_sig")
+        try:
+            prev = (
+                marker.read_text(encoding="utf-8").strip() if marker.exists() else None
+            )
+        except OSError:
+            prev = None
+
+        if prev == signature:
+            return  # same tier set as last compile — cached graphs are valid
+
+        # Signature changed (or first run): cached graphs may be specialized for a
+        # different tier set, so wipe the cache once and let the next compile
+        # rebuild from scratch.
+        cache_dir = os.environ.get("TORCHINDUCTOR_CACHE_DIR")
+        if not cache_dir:
+            try:
+                from torch._inductor.runtime.runtime_utils import (
+                    cache_dir as _inductor_cache_dir,
+                )
+
+                cache_dir = _inductor_cache_dir()
+            except Exception:  # noqa: BLE001 — torch internals move across versions
+                cache_dir = None
+        if cache_dir and os.path.isdir(cache_dir):
+            shutil.rmtree(cache_dir, ignore_errors=True)
+            logger.info(
+                "Cleared torch.compile inductor cache — compile signature "
+                f"changed ({prev or 'none'} -> {signature}); rebuilding from scratch."
+            )
+
+        try:
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text(signature, encoding="utf-8")
+        except OSError as e:  # marker is best-effort; never block training on it
+            logger.warning(f"Could not write compile-cache marker {marker}: {e}")
+
     def _create_and_apply_network(
         self,
         args,
@@ -1797,6 +1787,15 @@ class AnimaTrainer:
                 self, "_compile_token_budget", (None, None)
             )
             dynamic_seq = bool(getattr(args, "compile_dynamic_seq", False))
+            # Clear the inductor cache if the token-family composition (or compile
+            # mode) changed since the last run — a stale graph specialized for a
+            # different tier set otherwise triggers a ConstraintViolationError
+            # (see _maybe_clear_stale_compile_cache). No-op when unchanged.
+            self._maybe_clear_stale_compile_cache(
+                f"families={n_token_families};seq_range={seq_range};"
+                f"dynamic_seq={dynamic_seq};backend={args.dynamo_backend};"
+                f"mode={getattr(args, 'compile_inductor_mode', None)}"
+            )
             unet.compile_blocks(
                 args.dynamo_backend,
                 mode=getattr(args, "compile_inductor_mode", None),
