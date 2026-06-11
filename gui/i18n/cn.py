@@ -28,9 +28,14 @@ STRINGS: dict[str, str] = {
     "preprocess_image_prep": "图像预处理 (调整大小 / 过滤)",
     "preprocess_source_image_dir": "源图像目录:",
     "preprocess_source_image_dir_tip": (
-        "存放原始训练图像的文件夹 (含 .txt 标注附属文件)，"
-        "缓存步骤会将其调整大小后写入 post_image_dataset/。"
-        "保存至 configs/preprocess.toml。"
+        "所选 GUI method 的实际原始图像根目录。它跟随 method 路径和 "
+        "path_scope；若只想预处理其中一部分且不改变文件保存位置，请使用下方"
+        "预处理路径过滤器。"
+    ),
+    "preprocess_path_pattern": "预处理路径过滤器:",
+    "preprocess_path_pattern_tip": (
+        "相对于实际源图像目录匹配的 fnmatch glob。'*'（或空白）处理全部；"
+        "'1/*' 处理一个子文件夹；'1/*|2/*' 表示 OR 组合。"
     ),
     "preprocess_drop_lowres": "丢弃低分辨率图像",
     "preprocess_drop_lowres_tip": (
@@ -120,10 +125,10 @@ STRINGS: dict[str, str] = {
     "preprocess_status_resized": "已调整大小的图像: {n}",
     "preprocess_status_caches": "缓存 — latents: {lat}, text: {te}, PE: {pe}",
     "preprocess_status_masks": "蒙版: {masks}",
-    "preprocess_status_no_resized": "尚无已调整大小的图像 —— 请先在训练配置选项卡运行预处理。",
+    "preprocess_status_no_resized": "尚无已调整大小的图像 —— 请先在预处理选项卡运行缓存。",
     "preprocess_log_placeholder": "预处理输出将显示在此处……",
     "preprocess_save_settings": "保存",
-    "preprocess_save_settings_tip": "持久化这些设置 (写入 configs/preprocess.toml + configs/sam_mask.yaml + GUI 设置)。",
+    "preprocess_save_settings_tip": "持久化这些设置 (写入所选 GUI method + configs/sam_mask.yaml + GUI 设置)。",
     "preprocess_settings_saved": "预处理设置已保存。",
     "preprocess_invalid_float": "{field} 的数字无效: {value}",
     "preprocess_already_running": "已有预处理步骤在运行。",

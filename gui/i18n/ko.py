@@ -24,9 +24,14 @@ STRINGS: dict[str, str] = {
     "preprocess_image_prep": "이미지 전처리 (리사이즈 / 필터)",
     "preprocess_source_image_dir": "소스 이미지 폴더:",
     "preprocess_source_image_dir_tip": (
-        "원본 학습 이미지가 있는 폴더 (.txt 캡션 사이드카 포함). "
-        "캐싱 단계에서 post_image_dataset/로 리사이즈됩니다. "
-        "configs/preprocess.toml에 저장됩니다."
+        "선택한 GUI method의 실제 원본 이미지 루트입니다. method 경로와 "
+        "path_scope를 따라가며, 저장 위치를 바꾸지 않고 일부만 전처리하려면 "
+        "아래 전처리 경로 필터를 사용하세요."
+    ),
+    "preprocess_path_pattern": "전처리 경로 필터:",
+    "preprocess_path_pattern_tip": (
+        "실제 소스 이미지 폴더 기준 상대 경로에 적용되는 fnmatch glob 필터입니다. "
+        "'*'(또는 빈 값)은 전체, '1/*'는 한 하위 폴더, '1/*|2/*'는 OR 조합입니다."
     ),
     "preprocess_drop_lowres": "저해상도 이미지 제외",
     "preprocess_drop_lowres_tip": (
@@ -122,10 +127,10 @@ STRINGS: dict[str, str] = {
     "preprocess_status_resized": "리사이즈된 이미지: {n}장",
     "preprocess_status_caches": "캐시 — latents: {lat}, text: {te}, PE: {pe}",
     "preprocess_status_masks": "마스크: {masks}장",
-    "preprocess_status_no_resized": "리사이즈된 이미지가 없습니다 — 학습 설정 탭에서 Preprocess를 먼저 실행하세요.",
+    "preprocess_status_no_resized": "리사이즈된 이미지가 없습니다 — 전처리 탭에서 캐싱을 먼저 실행하세요.",
     "preprocess_log_placeholder": "전처리 출력이 여기에 표시됩니다...",
     "preprocess_save_settings": "저장",
-    "preprocess_save_settings_tip": "이 설정들을 디스크에 저장합니다 (configs/preprocess.toml + configs/sam_mask.yaml + GUI 설정).",
+    "preprocess_save_settings_tip": "이 설정들을 디스크에 저장합니다 (선택한 GUI method + configs/sam_mask.yaml + GUI 설정).",
     "preprocess_settings_saved": "전처리 설정이 저장되었습니다.",
     "preprocess_invalid_float": "{field}에 잘못된 숫자: {value}",
     "preprocess_already_running": "이미 전처리 단계가 실행 중입니다.",

@@ -25,9 +25,15 @@ STRINGS: dict[str, str] = {
     "preprocess_image_prep": "画像前処理 (リサイズ / フィルター)",
     "preprocess_source_image_dir": "ソース画像フォルダー:",
     "preprocess_source_image_dir_tip": (
-        "学習用元画像が入ったフォルダー (.txt キャプションサイドカーを含む)。"
-        "キャッシュステップで post_image_dataset/ にリサイズされます。"
-        "configs/preprocess.toml に保存されます。"
+        "選択中の GUI method で実際に使われる元画像ルートです。"
+        "method のパスと path_scope に従います。保存先を変えずに一部だけ"
+        "前処理する場合は下の前処理パスフィルターを使用してください。"
+    ),
+    "preprocess_path_pattern": "前処理パスフィルター:",
+    "preprocess_path_pattern_tip": (
+        "実効ソース画像フォルダーからの相対パスに適用する fnmatch glob。"
+        "'*'(または空欄) は全件、'1/*' は1つのサブフォルダー、"
+        "'1/*|2/*' は OR 結合です。"
     ),
     "preprocess_drop_lowres": "低解像度画像を除外",
     "preprocess_drop_lowres_tip": (
@@ -126,10 +132,10 @@ STRINGS: dict[str, str] = {
     "preprocess_status_resized": "リサイズ済み画像: {n}",
     "preprocess_status_caches": "キャッシュ — 潜在変数: {lat}, テキスト: {te}, PE: {pe}",
     "preprocess_status_masks": "マスク: {masks}",
-    "preprocess_status_no_resized": "リサイズ済み画像がありません — まず学習設定タブの前処理を実行してください。",
+    "preprocess_status_no_resized": "リサイズ済み画像がありません — まず前処理タブでキャッシュを実行してください。",
     "preprocess_log_placeholder": "前処理の出力がここに表示されます...",
     "preprocess_save_settings": "保存",
-    "preprocess_save_settings_tip": "設定を保存します (configs/preprocess.toml + configs/sam_mask.yaml + GUI設定に書き込みます)。",
+    "preprocess_save_settings_tip": "設定を保存します (選択中の GUI method + configs/sam_mask.yaml + GUI設定に書き込みます)。",
     "preprocess_settings_saved": "前処理設定を保存しました。",
     "preprocess_invalid_float": "{field} の値が不正です: {value}",
     "preprocess_already_running": "前処理ステップが既に実行中です。",

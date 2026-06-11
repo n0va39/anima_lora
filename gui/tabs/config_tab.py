@@ -191,17 +191,8 @@ class ConfigTab(QWidget):
         self._save_btn.clicked.connect(self._save_preset)
         top.addWidget(self._save_btn)
 
-        self.preprocess_btn = QPushButton(t("preprocess"))
-        self._preprocess_idle_style = (
-            "background:#d68910;color:white;font-weight:bold;padding:4px 16px;"
-        )
-        self._preprocess_busy_style = (
-            "background:#7f8c8d;color:white;font-weight:bold;padding:4px 16px;"
-        )
-        self.preprocess_btn.setStyleSheet(self._preprocess_idle_style)
-        self.preprocess_btn.setToolTip(t("preprocess_current_tooltip"))
-        self.preprocess_btn.clicked.connect(self._start_preprocess)
-        top.addWidget(self.preprocess_btn)
+        # Standalone preprocessing controls live on the Preprocessing tab.
+        self.preprocess_btn: QPushButton | None = None
 
         self.train_btn = QPushButton(t("train"))
         self._train_idle_style = (
@@ -439,6 +430,8 @@ class ConfigTab(QWidget):
         variant = self._current_variant()
         merged, origin = merged_gui_variant_preset(variant, self._IMPLICIT_PRESET)
         cfg = {k: v for k, v in merged.items() if k not in _SKIP}
+        if self._preprocess_tab is not None:
+            self._preprocess_tab.set_variant(variant)
 
         self._origin = origin
 
@@ -951,7 +944,6 @@ class ConfigTab(QWidget):
         self.test_btn.setStyleSheet(self._test_busy_style)
         self.test_btn.setEnabled(False)
         self.train_btn.setEnabled(False)
-        self.preprocess_btn.setEnabled(False)
         self.queue_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
         self.method_combo.setEnabled(False)
@@ -970,11 +962,14 @@ class ConfigTab(QWidget):
         return cache_dir
 
     def _preprocess_env(self, variant: str) -> dict[str, str]:
-        return {
+        env = {
             "METHOD": variant,
             "METHODS_SUBDIR": "gui-methods",
             "PRESET": self._IMPLICIT_PRESET,
         }
+        if self._preprocess_tab is not None:
+            env.update(self._preprocess_tab.preprocess_env())
+        return env
 
     def _chain_train_spec(self, variant: str) -> dict[str, str]:
         return {
@@ -1045,6 +1040,8 @@ class ConfigTab(QWidget):
             else merged_gui_variant_preset(variant, self._IMPLICIT_PRESET)[0]
         )
         snapshot = self._gui_scoped_paths(snapshot)
+        if self._preprocess_tab is not None:
+            snapshot.update(self._preprocess_tab.preprocess_overrides())
         for key in (
             "base_config",
             "dataset_config",
@@ -1053,6 +1050,7 @@ class ConfigTab(QWidget):
             "preset",
             "methods_subdir",
             _GUI_PATH_SCOPE_KEY,
+            "preprocess_path_pattern",
             *_VIRTUAL_KEYS,
         ):
             snapshot.pop(key, None)
@@ -1097,12 +1095,7 @@ class ConfigTab(QWidget):
         if chain_after:
             self.train_btn.setText(t("train_preprocessing"))
             self.train_btn.setStyleSheet(self._train_busy_style)
-        else:
-            self.train_btn.setText(t("train"))
-            self.preprocess_btn.setText(t("preprocess") + " ...")
-            self.preprocess_btn.setStyleSheet(self._preprocess_busy_style)
         self.train_btn.setEnabled(False)
-        self.preprocess_btn.setEnabled(False)
         self.queue_btn.setEnabled(False)
         self.test_btn.setEnabled(False)
         self.method_combo.setEnabled(False)
@@ -1152,33 +1145,19 @@ class ConfigTab(QWidget):
         self._log(t("daemon_queued", job_id=job_id))
         self._attach_to_job(job_id, replay_log=False, kind="preprocess")
 
-    def _start_preprocess(self):
-        """Run preprocess for the current GUI-scoped variant without training."""
-        if self._dirty:
-            self._save_preset(silent=True)
-
-        variant = self._current_variant()
-        cache_dir = self._resolve_cache_dir(variant)
-        if not confirm_existing_caches(self, cache_dir):
-            return
-
-        self._chain_train_after_preprocess = False
-        self._chain_variant = variant
-        self._launch_preprocess(variant)
-
     def _start_training(self):
         # Flush form edits to disk first — train.py reads the variant file
         # from disk, so unsaved form values would otherwise be ignored.
         if self._dirty:
             self._save_preset(silent=True)
 
-        # Flush the Preprocess tab's target_res tiers to preprocess.toml too.
+        # Flush the Preprocess tab's cache settings to preprocess.toml too.
         # An auto-chain preprocess (cache-missing branch below) runs
-        # `tasks.py preprocess`, which reads the tiers from preprocess.toml —
-        # not from that widget — so without this the chain would resize at the
-        # stale/default tier whenever the user changed tiers but didn't Save.
+        # `tasks.py preprocess`, which reads the tiers/filter from preprocess.toml
+        # and caption shuffle knobs from the env — not directly from widgets.
         if self._preprocess_tab is not None:
-            self._preprocess_tab.persist_target_res()
+            if not self._preprocess_tab.persist_preprocess_inputs():
+                return
 
         variant = self._current_variant()
         cache_dir = self._resolve_cache_dir(variant)
@@ -1223,6 +1202,9 @@ class ConfigTab(QWidget):
         """
         if self._dirty:
             self._save_preset(silent=True)
+        if self._preprocess_tab is not None:
+            if not self._preprocess_tab.persist_preprocess_inputs():
+                return
 
         variant = self._current_variant()
         cache_dir = self._resolve_cache_dir(variant)
@@ -1318,7 +1300,6 @@ class ConfigTab(QWidget):
         self.train_btn.setText(t("train") + " ...")
         self.train_btn.setStyleSheet(self._train_busy_style)
         self.train_btn.setEnabled(False)
-        self.preprocess_btn.setEnabled(False)
         self.queue_btn.setEnabled(False)
         self.test_btn.setEnabled(False)
         self.method_combo.setEnabled(False)
@@ -1416,8 +1397,6 @@ class ConfigTab(QWidget):
             self.train_btn.setText(
                 t("train_preprocessing") if chain_after else t("train")
             )
-            self.preprocess_btn.setText(t("preprocess") + " ...")
-            self.preprocess_btn.setStyleSheet(self._preprocess_busy_style)
         else:
             self.train_btn.setText(t("train_running_daemon"))
         self.train_btn.setStyleSheet(self._train_busy_style)
@@ -1428,7 +1407,6 @@ class ConfigTab(QWidget):
         # job uses an immutable config snapshot captured at submit, so editing the
         # form afterward can't disturb it.
         self.queue_btn.setEnabled(True)
-        self.preprocess_btn.setEnabled(False)
         self.test_btn.setEnabled(False)
         self.method_combo.setEnabled(True)
         self.variant_combo.setEnabled(True)
@@ -1549,9 +1527,6 @@ class ConfigTab(QWidget):
         self.train_btn.setText(t("train"))
         self.train_btn.setStyleSheet(self._train_idle_style)
         self.train_btn.setEnabled(True)
-        self.preprocess_btn.setText(t("preprocess"))
-        self.preprocess_btn.setStyleSheet(self._preprocess_idle_style)
-        self.preprocess_btn.setEnabled(True)
         self._restore_queue_button()
         self.test_btn.setText(t("test"))
         self.test_btn.setStyleSheet(self._test_idle_style)

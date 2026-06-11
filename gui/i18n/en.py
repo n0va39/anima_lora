@@ -25,9 +25,15 @@ STRINGS: dict[str, str] = {
     "preprocess_image_prep": "Image preprocessing (resize / filter)",
     "preprocess_source_image_dir": "Source image dir:",
     "preprocess_source_image_dir_tip": (
-        "Folder of raw training images (with .txt caption sidecars), resized "
-        "into post_image_dataset/ by the caching step. Written to "
-        "configs/preprocess.toml."
+        "Effective raw image root for the selected GUI method. It follows the "
+        "method paths and path_scope; use the preprocess path filter below to "
+        "run only part of this tree without changing where files are stored."
+    ),
+    "preprocess_path_pattern": "Preprocess path filter:",
+    "preprocess_path_pattern_tip": (
+        "fnmatch glob restricting which source images are preprocessed, matched "
+        "relative to the effective source image dir. '*' (or blank) processes "
+        "everything; '1/*' processes one subfolder; '1/*|2/*' OR-combines."
     ),
     "preprocess_drop_lowres": "Drop low-resolution images",
     "preprocess_drop_lowres_tip": (
@@ -125,10 +131,10 @@ STRINGS: dict[str, str] = {
     "preprocess_status_resized": "Resized images: {n}",
     "preprocess_status_caches": "Caches — latents: {lat}, text: {te}, PE: {pe}",
     "preprocess_status_masks": "Masks: {masks}",
-    "preprocess_status_no_resized": "No resized images yet — run Preprocess in the Training Config tab first.",
+    "preprocess_status_no_resized": "No resized images yet — run caching in the Preprocessing tab first.",
     "preprocess_log_placeholder": "Preprocessing output will appear here...",
     "preprocess_save_settings": "Save",
-    "preprocess_save_settings_tip": "Persist these settings (writes configs/preprocess.toml + configs/sam_mask.yaml + GUI settings).",
+    "preprocess_save_settings_tip": "Persist these settings (writes the selected GUI method + configs/sam_mask.yaml + GUI settings).",
     "preprocess_settings_saved": "Preprocessing settings saved.",
     "preprocess_invalid_float": "Invalid number for {field}: {value}",
     "preprocess_already_running": "A preprocessing step is already running.",
