@@ -11,13 +11,14 @@ hardcode: caption shuffle variant count, per-tag dropout rate, SAM prompt
 list / threshold / dilate, MIT text-threshold / dilate.
 
 Settings persist to:
+- the selected ``configs/gui-methods/<variant>.toml`` ``[variant]`` table —
+  GUI-profile preprocess knobs such as preprocess path filter, target_res,
+  low-res filtering, and caption shuffle/dropout.
 - ``configs/sam_mask.yaml`` — SAM prompts / threshold / dilate (existing
   canonical location, read directly by ``scripts/preprocess/generate_masks.py``).
-- ``gui/gui_settings.json`` — TE-cache and MIT knobs, picked up by this
-  tab on launch and forwarded to subprocesses via env vars
-  (``CAPTION_SHUFFLE_VARIANTS``, ``CAPTION_TAG_DROPOUT_RATE``,
-  ``MIT_TEXT_THRESHOLD``, ``MIT_DILATE``) consumed by
-  ``scripts/tasks/preprocess.py`` and ``scripts/tasks/masking.py``.
+- ``gui/gui_settings.json`` — mask-run toggles and MIT knobs, picked up by this
+  tab on launch and forwarded to subprocesses via env vars (``MIT_TEXT_THRESHOLD``,
+  ``MIT_DILATE``) consumed by ``scripts/tasks/masking.py``.
 """
 
 from __future__ import annotations
@@ -1062,10 +1063,11 @@ class PreprocessingTab(LazyTabMixin, QWidget):
             meta["min_pixels"] = min_pixels
 
         target_res = self.target_res_widget.value()
-        if target_res == DEFAULT_TARGET_RES:
-            meta.pop("target_res", None)
-        else:
-            meta["target_res"] = target_res
+        # Keep this explicit even when it matches the default. It is the only
+        # preprocess knob that also affects train-time compile-cache sizing, and
+        # users expect the selected GUI profile to show the exact resolution
+        # tiers it will use.
+        meta["target_res"] = target_res
 
         shuffle = int(self.shuffle_spin.value())
         if shuffle == DEFAULT_TE_SHUFFLE_VARIANTS:
