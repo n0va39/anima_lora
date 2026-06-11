@@ -35,6 +35,7 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -59,6 +60,7 @@ from gui import (
     _load,
     _save,
     count_preprocess_caches,
+    list_gui_variants,
     merged_gui_variant_preset,
     variant_path,
 )
@@ -90,6 +92,7 @@ DEFAULT_MIT_TEXT_THRESHOLD = 0.8
 DEFAULT_MIT_DILATE = 5
 DEFAULT_RUN_SAM_MASK = True
 DEFAULT_RUN_MIT_MASK = True
+PREPROCESS_METHODS = ["lora", "tlora", "hydralora"]
 _GUI_PREPROCESS_KEYS = {
     "preprocess_path_pattern",
     "drop_lowres_images",
@@ -370,6 +373,26 @@ class PreprocessingTab(LazyTabMixin, QWidget):
         run_step_style = (
             "background:#2980b9;color:white;font-weight:bold;padding:4px 16px;"
         )
+
+        self._method_label = QLabel("Method")
+        top.addWidget(self._method_label)
+        self.method_combo = QComboBox()
+        self.method_combo.addItems(PREPROCESS_METHODS)
+        self.method_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.method_combo.setMinimumContentsLength(
+            max((len(m) for m in PREPROCESS_METHODS), default=10)
+        )
+        self.method_combo.currentTextChanged.connect(self._on_method_changed)
+        top.addWidget(self.method_combo)
+
+        self._variant_label = QLabel(t("variant"))
+        top.addWidget(self._variant_label)
+        self.variant_combo = QComboBox()
+        self.variant_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.variant_combo.setMinimumContentsLength(20)
+        self.variant_combo.currentTextChanged.connect(self._on_variant_changed)
+        top.addWidget(self.variant_combo, 1)
+        self._refresh_variant_row(self.method_combo.currentText())
 
         self.save_btn = QPushButton(t("preprocess_save_settings"))
         self.save_btn.setToolTip(t("preprocess_save_settings_tip"))
@@ -652,10 +675,44 @@ class PreprocessingTab(LazyTabMixin, QWidget):
         # session (or one submitted by the CLI) so closing+reopening re-attaches.
         self._try_reattach()
 
-    def set_variant(self, variant: str) -> None:
+    def _refresh_variant_row(self, method: str) -> None:
+        variants = list_gui_variants(method)
+        current = [
+            self.variant_combo.itemText(i) for i in range(self.variant_combo.count())
+        ]
+        if current == variants:
+            return
+        self.variant_combo.blockSignals(True)
+        self.variant_combo.clear()
+        if variants:
+            self.variant_combo.addItems(variants)
+        self.variant_combo.blockSignals(False)
+
+    def _on_method_changed(self, method: str) -> None:
+        if self._loading_variant:
+            return
+        self._refresh_variant_row(method)
+        self.set_variant(self.variant_combo.currentText(), method=method)
+
+    def _on_variant_changed(self, variant: str) -> None:
+        if self._loading_variant:
+            return
+        self.set_variant(variant, method=self.method_combo.currentText())
+
+    def set_variant(self, variant: str, *, method: str | None = None) -> None:
         """Load GUI preprocess controls for the selected training variant."""
         if not variant:
             return
+        if method:
+            self._loading_variant = True
+            try:
+                if self.method_combo.currentText() != method:
+                    self.method_combo.setCurrentText(method)
+                self._refresh_variant_row(method)
+                if self.variant_combo.currentText() != variant:
+                    self.variant_combo.setCurrentText(variant)
+            finally:
+                self._loading_variant = False
         self._variant = variant
         meta = self._variant_preprocess_meta(variant)
         settings = _load_settings()

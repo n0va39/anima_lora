@@ -428,7 +428,7 @@ class ConfigTab(QWidget):
         merged, origin = merged_gui_variant_preset(variant, self._IMPLICIT_PRESET)
         cfg = {k: v for k, v in merged.items() if k not in _SKIP}
         if self._preprocess_tab is not None:
-            self._preprocess_tab.set_variant(variant)
+            self._preprocess_tab.set_variant(variant, method=method)
 
         self._origin = origin
 
