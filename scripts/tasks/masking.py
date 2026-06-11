@@ -15,6 +15,7 @@ no-op for single-source inputs.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import tempfile
@@ -27,31 +28,63 @@ RESIZED_IMAGE_DIR = ROOT / "post_image_dataset" / "resized"
 SAM_CONFIG = ROOT / "configs" / "sam_mask.yaml"
 
 
-def _config_path_pattern() -> str | None:
-    """Read ``path_pattern`` from sam_mask.yaml so both backends filter alike.
+def _runtime_sam_config() -> dict | None:
+    """GUI queue jobs can pass an immutable SAM config snapshot via env.
 
-    The key lives in the SAM config but is a dataset-level filter, so ``make
-    mask`` forwards it to the MIT backend too (both run on the same resized
-    dir). Missing key / ``"*"`` means mask everything.
+    Direct CLI usage leaves this unset and continues to read
+    ``configs/sam_mask.yaml``.
     """
+    raw = os.environ.get("SAM_MASK_CONFIG_JSON")
+    if not raw:
+        return None
+    try:
+        cfg = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Invalid SAM_MASK_CONFIG_JSON: {exc}") from exc
+    if not isinstance(cfg, dict):
+        raise SystemExit("Invalid SAM_MASK_CONFIG_JSON: expected an object")
+    return cfg
+
+
+def _load_sam_config() -> dict:
+    runtime = _runtime_sam_config()
+    if runtime is not None:
+        return runtime
     try:
         import yaml
 
         with open(SAM_CONFIG) as f:
-            cfg = yaml.safe_load(f) or {}
+            return yaml.safe_load(f) or {}
     except (OSError, ImportError):
-        return None
+        return {}
+
+
+def _config_path_pattern(cfg: dict) -> str | None:
+    """Read ``path_pattern`` so both backends filter alike.
+
+    The key lives with the SAM config but is a dataset-level filter, so ``make
+    mask`` forwards it to the MIT backend too (both run on the same resized
+    dir). Missing key / ``"*"`` means mask everything.
+    """
     pattern = cfg.get("path_pattern")
     return pattern if pattern and pattern != "*" else None
 
 
-def _run_sam(image_dir: Path, out_dir: Path, extra: list[str]) -> None:
+def _sam_config_path(cfg: dict, tmp_root: str) -> str:
+    if _runtime_sam_config() is None:
+        return "configs/sam_mask.yaml"
+    path = Path(tmp_root) / "sam_mask.yaml"
+    path.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
+    return str(path)
+
+
+def _run_sam(image_dir: Path, out_dir: Path, extra: list[str], config_path: str) -> None:
     run(
         [
             PY,
             "scripts/preprocess/generate_masks.py",
             "--config",
-            "configs/sam_mask.yaml",
+            config_path,
             "--image-dir",
             str(image_dir),
             "--mask-dir",
@@ -109,13 +142,15 @@ def cmd_mask(extra):
     if not (run_sam or run_mit):
         print("Both SAM and MIT masking are disabled — nothing to do.")
         return
-    pattern = _config_path_pattern()
+    sam_cfg = _load_sam_config()
+    pattern = _config_path_pattern(sam_cfg)
     pattern_args = ["--path-pattern", pattern] if pattern else []
     with tempfile.TemporaryDirectory(prefix="anima-masks-") as tmp_root:
+        sam_config_path = _sam_config_path(sam_cfg, tmp_root)
         merge_sources: list[str] = []
         if run_sam:
             tmp_sam = Path(tmp_root) / "sam"
-            _run_sam(RESIZED_IMAGE_DIR, tmp_sam, [*pattern_args])
+            _run_sam(RESIZED_IMAGE_DIR, tmp_sam, [*pattern_args], sam_config_path)
             merge_sources.append(str(tmp_sam))
         if run_mit:
             tmp_mit = Path(tmp_root) / "mit"

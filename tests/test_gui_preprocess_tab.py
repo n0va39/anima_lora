@@ -3,6 +3,38 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
+
+
+@contextmanager
+def _temporary_custom_variant(name: str) -> Iterator[tuple[str, object]]:
+    from gui import variant_path
+
+    variant = f"custom/{name}"
+    path = variant_path(variant)
+    old_text = path.read_text(encoding="utf-8") if path.exists() else None
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('[variant]\nfamily = "lora"\n', encoding="utf-8")
+    try:
+        yield variant, path
+    finally:
+        if old_text is None:
+            path.unlink(missing_ok=True)
+        else:
+            path.write_text(old_text, encoding="utf-8")
+
+
+def _make_tab():
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+    from PySide6.QtWidgets import QApplication
+
+    from gui.tabs.preprocess_tab import PreprocessingTab
+
+    app = QApplication.instance() or QApplication([])
+    assert app is not None
+    return PreprocessingTab()
 
 
 def test_preprocess_tab_persists_default_target_res_to_variant():
@@ -13,35 +45,86 @@ def test_preprocess_tab_persists_default_target_res_to_variant():
     resolution selection reset/vanish from the profile even though the widget
     accepted the value.
     """
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-    from PySide6.QtWidgets import QApplication
-
-    from gui import _load, variant_path
-    from gui.tabs.preprocess_tab import PreprocessingTab
-
-    app = QApplication.instance() or QApplication([])
-    assert app is not None
-
-    variant = "custom/__pytest_preprocess_target_res__"
-    path = variant_path(variant)
-    old_text = path.read_text(encoding="utf-8") if path.exists() else None
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text('[variant]\nfamily = "lora"\n', encoding="utf-8")
+    from gui import _load
 
     tab = None
-    try:
-        tab = PreprocessingTab()
+    with _temporary_custom_variant("__pytest_preprocess_target_res__") as (
+        variant,
+        path,
+    ):
+        tab = _make_tab()
         tab.set_variant(variant, method="lora")
+        tab._set_target_res_widget([1024])
 
         assert tab.persist_preprocess_inputs()
 
         meta = _load(path)["variant"]
         assert meta["target_res"] == [1024]
-    finally:
+
         if tab is not None:
             tab.deleteLater()
-        if old_text is None:
-            path.unlink(missing_ok=True)
-        else:
-            path.write_text(old_text, encoding="utf-8")
+
+
+def test_preprocess_tab_persists_masking_settings_to_variant():
+    from gui import _load
+
+    tab = None
+    with _temporary_custom_variant("__pytest_preprocess_mask_profile__") as (
+        variant,
+        path,
+    ):
+        tab = _make_tab()
+        tab.set_variant(variant, method="lora")
+
+        assert not tab._dirty
+        tab.mask_path_pattern_edit.setText("character_a/*")
+        assert tab._dirty
+        assert tab.save_btn.text().endswith(" *")
+
+        tab.run_sam_mask_chk.setChecked(False)
+        tab.run_mit_mask_chk.setChecked(True)
+        tab.mit_threshold_edit.setText("0.7")
+        tab.mit_dilate_spin.setValue(9)
+        card = tab._rule_cards[0]
+        card.path_pattern_edit.setText("character_a/*")
+        card.prompts_edit.setPlainText("speech bubble\nartist")
+        card.focus_prompts_edit.setPlainText("girl")
+        card.threshold_edit.setText("0.45")
+        card.dilate_spin.setValue(7)
+
+        assert tab._save_all()
+
+        meta = _load(path)["variant"]
+        assert meta["run_sam_mask"] is False
+        assert meta["run_mit_mask"] is True
+        assert meta["mask_path_pattern"] == "character_a/*"
+        assert meta["mit_text_threshold"] == 0.7
+        assert meta["mit_dilate"] == 9
+        assert meta["mask_rules"] == [
+            {
+                "path_pattern": "character_a/*",
+                "prompts": ["speech bubble", "artist"],
+                "focus_prompts": ["girl"],
+                "threshold": 0.45,
+                "dilate": 7,
+            }
+        ]
+        assert not tab._dirty
+        assert not tab.save_btn.text().endswith(" *")
+
+        if tab is not None:
+            tab.deleteLater()
+
+
+def test_masking_task_reads_gui_sam_config_snapshot(monkeypatch):
+    from scripts.tasks import masking
+
+    monkeypatch.setenv(
+        "SAM_MASK_CONFIG_JSON",
+        '{"path_pattern":"character_a/*","rules":[{"prompts":["bubble"]}]}',
+    )
+
+    cfg = masking._load_sam_config()
+
+    assert cfg["rules"] == [{"prompts": ["bubble"]}]
+    assert masking._config_path_pattern(cfg) == "character_a/*"

@@ -13,12 +13,9 @@ list / threshold / dilate, MIT text-threshold / dilate.
 Settings persist to:
 - the selected ``configs/gui-methods/<variant>.toml`` ``[variant]`` table —
   GUI-profile preprocess knobs such as preprocess path filter, target_res,
-  low-res filtering, and caption shuffle/dropout.
+  low-res filtering, caption shuffle/dropout, and mask settings.
 - ``configs/sam_mask.yaml`` — SAM prompts / threshold / dilate (existing
-  canonical location, read directly by ``scripts/preprocess/generate_masks.py``).
-- ``gui/gui_settings.json`` — mask-run toggles and MIT knobs, picked up by this
-  tab on launch and forwarded to subprocesses via env vars (``MIT_TEXT_THRESHOLD``,
-  ``MIT_DILATE``) consumed by ``scripts/tasks/masking.py``.
+  canonical CLI fallback, read directly by ``scripts/preprocess/generate_masks.py``).
 """
 
 from __future__ import annotations
@@ -104,6 +101,12 @@ _GUI_PREPROCESS_KEYS = {
     "target_res",
     "caption_shuffle_variants",
     "caption_tag_dropout_rate",
+    "run_sam_mask",
+    "run_mit_mask",
+    "mask_path_pattern",
+    "mask_rules",
+    "mit_text_threshold",
+    "mit_dilate",
 }
 
 RESIZED_DIR = ROOT / "post_image_dataset" / "resized"
@@ -270,6 +273,7 @@ class _RuleCard(QGroupBox):
     """
 
     removed = Signal(object)
+    changed = Signal()
 
     def __init__(self, rule: dict, help_cb):
         super().__init__(t("preprocess_sam_rule"))
@@ -279,6 +283,7 @@ class _RuleCard(QGroupBox):
         self.path_pattern_edit = QLineEdit(rule.get("path_pattern", ""))
         self.path_pattern_edit.setPlaceholderText("*")
         self.path_pattern_edit.setToolTip(t("preprocess_sam_rule_path_pattern_tip"))
+        self.path_pattern_edit.textChanged.connect(lambda *_: self.changed.emit())
         form.addRow(
             self._label("sam_rule_path_pattern", t("preprocess_sam_rule_path_pattern")),
             self.path_pattern_edit,
@@ -288,6 +293,7 @@ class _RuleCard(QGroupBox):
         self.prompts_edit.setMaximumHeight(70)
         self.prompts_edit.setStyleSheet("font-family:monospace;")
         self.prompts_edit.setToolTip(t("preprocess_sam_prompts_tip"))
+        self.prompts_edit.textChanged.connect(lambda: self.changed.emit())
         form.addRow(
             self._label("sam_prompts", t("preprocess_sam_prompts")), self.prompts_edit
         )
@@ -298,6 +304,7 @@ class _RuleCard(QGroupBox):
         self.focus_prompts_edit.setMaximumHeight(70)
         self.focus_prompts_edit.setStyleSheet("font-family:monospace;")
         self.focus_prompts_edit.setToolTip(t("preprocess_sam_focus_prompts_tip"))
+        self.focus_prompts_edit.textChanged.connect(lambda: self.changed.emit())
         form.addRow(
             self._label("sam_focus_prompts", t("preprocess_sam_focus_prompts")),
             self.focus_prompts_edit,
@@ -307,6 +314,7 @@ class _RuleCard(QGroupBox):
             f"{float(rule.get('threshold', DEFAULT_SAM_THRESHOLD)):g}"
         )
         self.threshold_edit.setToolTip(t("preprocess_sam_threshold_tip"))
+        self.threshold_edit.textChanged.connect(lambda *_: self.changed.emit())
         form.addRow(
             self._label("sam_threshold", t("preprocess_sam_threshold")),
             self.threshold_edit,
@@ -316,6 +324,7 @@ class _RuleCard(QGroupBox):
         self.dilate_spin.setRange(0, 64)
         self.dilate_spin.setValue(int(rule.get("dilate", DEFAULT_SAM_DILATE)))
         self.dilate_spin.wheelEvent = lambda e: e.ignore()
+        self.dilate_spin.valueChanged.connect(lambda *_: self.changed.emit())
         form.addRow(self._label("sam_dilate", t("preprocess_dilate")), self.dilate_spin)
 
         self.remove_btn = QPushButton(t("preprocess_sam_remove_rule"))
@@ -382,6 +391,7 @@ class PreprocessingTab(LazyTabMixin, QWidget):
         self._split_styles: list[SplitButtonStyle] = []
         self._variant: str | None = None
         self._loading_variant = False
+        self._dirty = False
 
         outer = QVBoxLayout(self)
 
@@ -425,6 +435,10 @@ class PreprocessingTab(LazyTabMixin, QWidget):
         self._refresh_variant_row(self.method_combo.currentText())
 
         self.save_btn = QPushButton(t("preprocess_save_settings"))
+        self._save_btn_idle_style = ""
+        self._save_btn_dirty_style = (
+            "background:#f39c12;color:#1b1b1b;font-weight:bold;padding:4px 12px;"
+        )
         self.save_btn.setToolTip(t("preprocess_save_settings_tip"))
         self.save_btn.clicked.connect(self._save_all_clicked)
         top.addWidget(self.save_btn)
@@ -695,6 +709,9 @@ class PreprocessingTab(LazyTabMixin, QWidget):
         vsplit.setSizes([520, 200])
         outer.addWidget(vsplit, 1)
 
+        self._connect_dirty_signals()
+        self._clear_dirty()
+
     def _lazy_init(self) -> None:
         # Cache-count scan deferred to first show of the tab.
         self._refresh_status()
@@ -774,6 +791,29 @@ class PreprocessingTab(LazyTabMixin, QWidget):
             "caption_tag_dropout_rate",
             settings.get("caption_tag_dropout_rate", DEFAULT_TE_TAG_DROPOUT),
         )
+        run_sam_mask = meta.get(
+            "run_sam_mask",
+            settings.get("run_sam_mask", DEFAULT_RUN_SAM_MASK),
+        )
+        run_mit_mask = meta.get(
+            "run_mit_mask",
+            settings.get("run_mit_mask", DEFAULT_RUN_MIT_MASK),
+        )
+        mask_path_pattern = meta.get(
+            "mask_path_pattern",
+            _load_sam_yaml().get("path_pattern") or DEFAULT_MASK_PATH_PATTERN,
+        )
+        mask_rules = meta.get("mask_rules")
+        if not isinstance(mask_rules, list):
+            mask_rules = _load_rules(_load_sam_yaml())
+        mit_threshold = meta.get(
+            "mit_text_threshold",
+            settings.get("mit_text_threshold", DEFAULT_MIT_TEXT_THRESHOLD),
+        )
+        mit_dilate = meta.get(
+            "mit_dilate",
+            settings.get("mit_dilate", DEFAULT_MIT_DILATE),
+        )
 
         self._loading_variant = True
         try:
@@ -785,10 +825,17 @@ class PreprocessingTab(LazyTabMixin, QWidget):
             self._set_target_res_widget(target_res)
             self.shuffle_spin.setValue(int(shuffle_variants))
             self.dropout_edit.setText(f"{float(tag_dropout):g}")
+            self.run_sam_mask_chk.setChecked(bool(run_sam_mask))
+            self.mask_path_pattern_edit.setText(str(mask_path_pattern or "*"))
+            self._set_rule_cards(mask_rules)
+            self.run_mit_mask_chk.setChecked(bool(run_mit_mask))
+            self.mit_threshold_edit.setText(f"{float(mit_threshold):g}")
+            self.mit_dilate_spin.setValue(int(mit_dilate))
         finally:
             self._loading_variant = False
         if hasattr(self, "status_lbl"):
             self._refresh_status()
+        self._clear_dirty()
 
     @staticmethod
     def _variant_preprocess_meta(variant: str) -> dict:
@@ -812,6 +859,67 @@ class PreprocessingTab(LazyTabMixin, QWidget):
             checkbox.blockSignals(True)
             checkbox.setChecked(edge in selected)
             checkbox.blockSignals(False)
+
+    def _set_rule_cards(self, rules: list[dict]) -> None:
+        for card in list(self._rule_cards):
+            self._rules_layout.removeWidget(card)
+            card.deleteLater()
+        self._rule_cards.clear()
+        for rule in rules or [{}]:
+            self._add_rule_card(rule)
+        self._update_remove_buttons()
+
+    # ── Dirty tracking ─────────────────────────────────────────────
+
+    def _connect_dirty_signal(self, widget: QWidget) -> None:
+        if isinstance(widget, _TargetResWidget):
+            widget.changed.connect(self._mark_dirty)
+        elif isinstance(widget, QCheckBox):
+            widget.toggled.connect(self._mark_dirty)
+        elif isinstance(widget, QSpinBox):
+            widget.valueChanged.connect(self._mark_dirty)
+        elif isinstance(widget, QLineEdit):
+            widget.textChanged.connect(self._mark_dirty)
+        elif isinstance(widget, QPlainTextEdit):
+            widget.textChanged.connect(self._mark_dirty)
+
+    def _connect_dirty_signals(self) -> None:
+        for widget in (
+            self.preprocess_path_pattern_edit,
+            self.drop_lowres_chk,
+            self.min_pixels_spin,
+            self.target_res_widget,
+            self.shuffle_spin,
+            self.dropout_edit,
+            self.run_sam_mask_chk,
+            self.mask_path_pattern_edit,
+            self.run_mit_mask_chk,
+            self.mit_threshold_edit,
+            self.mit_dilate_spin,
+        ):
+            self._connect_dirty_signal(widget)
+
+    def _mark_dirty(self, *_):
+        if self._loading_variant or self._dirty:
+            return
+        self._dirty = True
+        self._update_save_button()
+
+    def _clear_dirty(self):
+        self._dirty = False
+        self._update_save_button()
+
+    def _update_save_button(self):
+        if not hasattr(self, "save_btn"):
+            return
+        if self._dirty:
+            self.save_btn.setText(t("preprocess_save_settings") + " *")
+            self.save_btn.setStyleSheet(self._save_btn_dirty_style)
+            self.save_btn.setToolTip(t("save_dirty_tooltip"))
+        else:
+            self.save_btn.setText(t("preprocess_save_settings"))
+            self.save_btn.setStyleSheet(self._save_btn_idle_style)
+            self.save_btn.setToolTip(t("preprocess_save_settings_tip"))
 
     # ── Field labels & explain panel ───────────────────────────────
 
@@ -894,10 +1002,13 @@ class PreprocessingTab(LazyTabMixin, QWidget):
 
     def _add_rule_card(self, rule: dict | None = None) -> None:
         card = _RuleCard(rule or {}, self._show_field_help)
+        card.changed.connect(self._mark_dirty)
         card.removed.connect(self._remove_rule_card)
         self._rule_cards.append(card)
         self._rules_layout.addWidget(card)
         self._update_remove_buttons()
+        if not self._loading_variant:
+            self._mark_dirty()
 
     def _remove_rule_card(self, card: _RuleCard) -> None:
         if len(self._rule_cards) <= 1:
@@ -906,6 +1017,7 @@ class PreprocessingTab(LazyTabMixin, QWidget):
         self._rules_layout.removeWidget(card)
         card.deleteLater()
         self._update_remove_buttons()
+        self._mark_dirty()
 
     def _update_remove_buttons(self) -> None:
         # A lone rule can't be removed (would leave an empty config).
@@ -1000,13 +1112,14 @@ class PreprocessingTab(LazyTabMixin, QWidget):
         return _clean(snapshot)
 
     def persist_target_res(self) -> None:
-        """Persist the tier selection to the current GUI variant.
+        """Mark the GUI profile dirty when the tier selection changes.
 
-        ConfigTab auto-chain/queue captures this value into the immutable job
-        snapshot; plain CLI usage keeps using configs/preprocess.toml.
+        ConfigTab auto-chain/queue calls ``persist_preprocess_inputs`` before it
+        submits, so it still captures the latest tiers without silently saving
+        them while the user is editing.
         """
         if not self._loading_variant:
-            self._save_variant_preprocess_meta(validate_dropout=False)
+            self._mark_dirty()
 
     def persist_preprocess_inputs(self) -> bool:
         """Persist cache-building inputs used by ConfigTab's auto-chain/queue.
@@ -1016,7 +1129,14 @@ class PreprocessingTab(LazyTabMixin, QWidget):
         """
         return self._save_variant_preprocess_meta(validate_dropout=True)
 
-    def _save_variant_preprocess_meta(self, *, validate_dropout: bool) -> bool:
+    def _save_variant_preprocess_meta(
+        self,
+        *,
+        validate_dropout: bool,
+        include_mask: bool = False,
+        rules: list[dict] | None = None,
+        mit_threshold: float | None = None,
+    ) -> bool:
         if not self._variant:
             return True
         dropout = (
@@ -1080,6 +1200,21 @@ class PreprocessingTab(LazyTabMixin, QWidget):
         else:
             meta["caption_tag_dropout_rate"] = float(dropout)
 
+        if include_mask:
+            mask_path_pattern = (
+                self.mask_path_pattern_edit.text().strip() or DEFAULT_MASK_PATH_PATTERN
+            )
+            meta["run_sam_mask"] = self.run_sam_mask_chk.isChecked()
+            meta["run_mit_mask"] = self.run_mit_mask_chk.isChecked()
+            meta["mask_path_pattern"] = mask_path_pattern
+            meta["mask_rules"] = list(rules or [])
+            meta["mit_text_threshold"] = float(
+                DEFAULT_MIT_TEXT_THRESHOLD
+                if mit_threshold is None
+                else mit_threshold
+            )
+            meta["mit_dilate"] = int(self.mit_dilate_spin.value())
+
         if meta:
             data["variant"] = meta
         else:
@@ -1109,17 +1244,14 @@ class PreprocessingTab(LazyTabMixin, QWidget):
         mask_path_pattern = (
             self.mask_path_pattern_edit.text().strip() or DEFAULT_MASK_PATH_PATTERN
         )
-        if not self._save_variant_preprocess_meta(validate_dropout=False):
+        if not self._save_variant_preprocess_meta(
+            validate_dropout=False,
+            include_mask=True,
+            rules=rules,
+            mit_threshold=mit_threshold,
+        ):
             return False
-        _save_sam_yaml(rules, mask_path_pattern)
-        _save_settings(
-            {
-                "mit_text_threshold": mit_threshold,
-                "mit_dilate": int(self.mit_dilate_spin.value()),
-                "run_sam_mask": self.run_sam_mask_chk.isChecked(),
-                "run_mit_mask": self.run_mit_mask_chk.isChecked(),
-            }
-        )
+        self._clear_dirty()
         return True
 
     def _save_all_clicked(self) -> None:
@@ -1177,12 +1309,20 @@ class PreprocessingTab(LazyTabMixin, QWidget):
     def _run_mask(self, *, queue: bool = False) -> None:
         # Single-shot pipeline. ``tasks.py mask`` runs SAM and/or MIT into
         # a tempdir, merges the produced sources, and writes only the
-        # merged result to ``post_image_dataset/masks/<rel>/``. SAM reads
-        # ``configs/sam_mask.yaml`` directly; MIT picks up the
+        # merged result to ``post_image_dataset/masks/<rel>/``. GUI mask
+        # settings are submitted as env snapshots so queued jobs keep the
+        # profile values they were queued with; direct CLI usage still falls
+        # back to ``configs/sam_mask.yaml``. MIT picks up the
         # ``MIT_TEXT_THRESHOLD`` / ``MIT_DILATE`` env vars set below.
         # ``RUN_SAM_MASK`` / ``RUN_MIT_MASK`` gate each backend.
         if not self._save_all():
             return
+        rules = self._collect_rules()
+        if rules is None:
+            return
+        mask_path_pattern = (
+            self.mask_path_pattern_edit.text().strip() or DEFAULT_MASK_PATH_PATTERN
+        )
         run_sam = self.run_sam_mask_chk.isChecked()
         run_mit = self.run_mit_mask_chk.isChecked()
         if not (run_sam or run_mit):
@@ -1196,6 +1336,13 @@ class PreprocessingTab(LazyTabMixin, QWidget):
                 "MIT_DILATE": str(int(self.mit_dilate_spin.value())),
                 "RUN_SAM_MASK": "1" if run_sam else "0",
                 "RUN_MIT_MASK": "1" if run_mit else "0",
+                "SAM_MASK_CONFIG_JSON": json.dumps(
+                    {
+                        "rules": rules,
+                        "path_pattern": mask_path_pattern,
+                    },
+                    ensure_ascii=False,
+                ),
             },
             attach=not queue,
         )
