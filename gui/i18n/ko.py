@@ -127,7 +127,7 @@ STRINGS: dict[str, str] = {
     "preprocess_status_resized": "리사이즈된 이미지: {n}장",
     "preprocess_status_caches": "캐시 — latents: {lat}, text: {te}, PE: {pe}",
     "preprocess_status_masks": "마스크: {masks}장",
-    "preprocess_status_no_resized": "리사이즈된 이미지가 없습니다 — 전처리 탭에서 캐싱을 먼저 실행하세요.",
+    "preprocess_status_no_resized": "리사이즈된 이미지가 없습니다.",
     "preprocess_log_placeholder": "전처리 출력이 여기에 표시됩니다...",
     "preprocess_save_settings": "저장",
     "preprocess_save_settings_tip": "이 설정들을 디스크에 저장합니다 (선택한 GUI method + configs/sam_mask.yaml + GUI 설정).",
@@ -158,7 +158,7 @@ STRINGS: dict[str, str] = {
     "accelerate_not_found": "PATH에서 accelerate를 찾을 수 없습니다",
     "preprocess": "전처리",
     "preprocess_current_tooltip": "현재 variant의 GUI 경로 스코프를 적용해 전처리를 실행합니다.",
-    "preprocess_required": "학습 전에 전처리를 먼저 실행해주세요.",
+    "preprocess_required": "학습을 시작하면 전처리가 먼저 실행됩니다.",
     "preprocess_existing_caches_title": "기존 캐시를 그대로 재사용합니다",
     "preprocess_existing_caches_body": (
         "다음 경로에 이미 캐시 파일이 있습니다:\n  {cache_dir}\n\n"
@@ -182,7 +182,7 @@ STRINGS: dict[str, str] = {
         "기존 캐시로 학습을 진행할까요?"
     ),
     "train_autopreprocess_log": (
-        "전처리 캐시가 없어 전처리를 먼저 실행한 뒤 자동으로 학습을 시작합니다.\n"
+        "전처리 캐시가 없어 학습 시작 전에 전처리를 먼저 실행합니다.\n"
     ),
     "train_preprocessing": "전처리 중…",
     "no_lora_for_test": "테스트할 LoRA가 output/ckpt/에 없습니다. 먼저 학습을 실행하세요.",

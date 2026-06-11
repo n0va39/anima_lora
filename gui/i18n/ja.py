@@ -132,7 +132,7 @@ STRINGS: dict[str, str] = {
     "preprocess_status_resized": "リサイズ済み画像: {n}",
     "preprocess_status_caches": "キャッシュ — 潜在変数: {lat}, テキスト: {te}, PE: {pe}",
     "preprocess_status_masks": "マスク: {masks}",
-    "preprocess_status_no_resized": "リサイズ済み画像がありません — まず前処理タブでキャッシュを実行してください。",
+    "preprocess_status_no_resized": "リサイズ済み画像がありません。",
     "preprocess_log_placeholder": "前処理の出力がここに表示されます...",
     "preprocess_save_settings": "保存",
     "preprocess_save_settings_tip": "設定を保存します (選択中の GUI method + configs/sam_mask.yaml + GUI設定に書き込みます)。",
@@ -160,7 +160,7 @@ STRINGS: dict[str, str] = {
     "error": "エラー",
     "accelerate_not_found": "PATH に accelerate が見つかりません",
     "preprocess": "前処理",
-    "preprocess_required": "学習前に前処理を実行してください。",
+    "preprocess_required": "学習開始前に前処理が先に実行されます。",
     "preprocess_existing_caches_title": "既存のキャッシュを再利用します",
     "preprocess_existing_caches_body": (
         "次のディレクトリにキャッシュファイルが既に存在します:\n  {cache_dir}\n\n"
@@ -182,7 +182,7 @@ STRINGS: dict[str, str] = {
         "既存のキャッシュで続行しますか?"
     ),
     "train_autopreprocess_log": (
-        "前処理済みキャッシュが見つかりません — 前処理を実行してから自動的に学習を開始します。\n"
+        "前処理済みキャッシュが見つかりません — 学習開始前に前処理を先に実行します。\n"
     ),
     "train_preprocessing": "前処理中…",
     "no_lora_for_test": "output/ckpt/ に LoRA が見つかりません。先に学習を実行してください。",

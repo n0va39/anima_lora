@@ -125,7 +125,7 @@ STRINGS: dict[str, str] = {
     "preprocess_status_resized": "已调整大小的图像: {n}",
     "preprocess_status_caches": "缓存 — latents: {lat}, text: {te}, PE: {pe}",
     "preprocess_status_masks": "蒙版: {masks}",
-    "preprocess_status_no_resized": "尚无已调整大小的图像 —— 请先在预处理选项卡运行缓存。",
+    "preprocess_status_no_resized": "尚无已调整大小的图像。",
     "preprocess_log_placeholder": "预处理输出将显示在此处……",
     "preprocess_save_settings": "保存",
     "preprocess_save_settings_tip": "持久化这些设置 (写入所选 GUI method + configs/sam_mask.yaml + GUI 设置)。",
@@ -153,7 +153,7 @@ STRINGS: dict[str, str] = {
     "error": "错误",
     "accelerate_not_found": "在 PATH 中找不到 accelerate",
     "preprocess": "预处理",
-    "preprocess_required": "训练前请先运行预处理。",
+    "preprocess_required": "训练开始前会先运行预处理。",
     "preprocess_existing_caches_title": "将复用现有缓存",
     "preprocess_existing_caches_body": (
         "以下路径已存在缓存文件:\n  {cache_dir}\n\n"
@@ -175,7 +175,7 @@ STRINGS: dict[str, str] = {
         "用现有缓存继续训练吗?"
     ),
     "train_autopreprocess_log": (
-        "未找到预处理缓存 —— 将先运行预处理,然后自动开始训练。\n"
+        "未找到预处理缓存 —— 训练开始前会先运行预处理。\n"
     ),
     "train_preprocessing": "预处理中……",
     "no_lora_for_test": "output/ckpt/ 中没有可测试的 LoRA。请先运行训练。",

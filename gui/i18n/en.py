@@ -131,7 +131,7 @@ STRINGS: dict[str, str] = {
     "preprocess_status_resized": "Resized images: {n}",
     "preprocess_status_caches": "Caches — latents: {lat}, text: {te}, PE: {pe}",
     "preprocess_status_masks": "Masks: {masks}",
-    "preprocess_status_no_resized": "No resized images yet — run caching in the Preprocessing tab first.",
+    "preprocess_status_no_resized": "No resized images yet.",
     "preprocess_log_placeholder": "Preprocessing output will appear here...",
     "preprocess_save_settings": "Save",
     "preprocess_save_settings_tip": "Persist these settings (writes the selected GUI method + configs/sam_mask.yaml + GUI settings).",
@@ -162,7 +162,7 @@ STRINGS: dict[str, str] = {
     "accelerate_not_found": "accelerate not found on PATH",
     "preprocess": "Preprocess",
     "preprocess_current_tooltip": "Run preprocessing for the current variant using its GUI path scope.",
-    "preprocess_required": "Please run Preprocess before training.",
+    "preprocess_required": "Preprocess will run before training starts.",
     "preprocess_existing_caches_title": "Existing caches will be reused",
     "preprocess_existing_caches_body": (
         "Cache files already exist in:\n  {cache_dir}\n\n"
@@ -186,8 +186,7 @@ STRINGS: dict[str, str] = {
         "Proceed with the existing cache?"
     ),
     "train_autopreprocess_log": (
-        "No preprocessed cache found — running preprocess first, "
-        "then training automatically.\n"
+        "No preprocessed cache found — running preprocess before training starts.\n"
     ),
     "train_preprocessing": "Preprocessing…",
     "no_lora_for_test": "No LoRA in output/ckpt/ to test. Run training first.",
