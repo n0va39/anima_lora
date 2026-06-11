@@ -97,6 +97,25 @@ def test_partition_cached(tmp_path: Path) -> None:
     assert [p.name for p in pending] == ["img0.png", "img2.png"]
 
 
+def test_count_preprocess_caches_path_pattern_filters_nested_caches(
+    tmp_path: Path,
+) -> None:
+    from gui.dialogs import count_preprocess_caches
+
+    (tmp_path / "charA").mkdir()
+    (tmp_path / "charB").mkdir()
+    (tmp_path / "charA" / "cover_1024x1024_anima.npz").touch()
+    (tmp_path / "charA" / "cover_anima_te.safetensors").touch()
+    (tmp_path / "charB" / "cover_1024x1024_anima.npz").touch()
+    (tmp_path / "charB" / "cover_anima_te.safetensors").touch()
+
+    assert count_preprocess_caches(tmp_path, "charA/*") == {
+        "latents": 1,
+        "te": 1,
+        "pe": 0,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Model-free end-to-end coverage for the loops moved into library/preprocess/
 # (item A of the proposal). cache_pe_features / cache_latents /

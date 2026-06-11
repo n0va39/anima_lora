@@ -69,6 +69,7 @@ from gui.explanations import preprocess_field_help, preprocess_guide
 from gui.i18n import t
 from gui.progress import TQDM_RE, TqdmProgressTracker, make_progress_bar
 from gui.tabs.config_tab import ClickableLabel, ConfigTab
+from library.datasets.subsets import filter_paths_by_glob
 
 SAM_YAML = ROOT / "configs" / "sam_mask.yaml"
 PREPROCESS_TOML = ROOT / "configs" / "preprocess.toml"
@@ -219,23 +220,41 @@ def _save_sam_yaml(
     SAM_YAML.write_text(text, encoding="utf-8")
 
 
-def _count_masks(mask_dir: Path) -> int:
+def _filtered_files(root: Path, pattern: str | None, predicate) -> list[Path]:
+    if not root.is_dir():
+        return []
+    paths = [p for p in root.rglob("*") if p.is_file() and predicate(p)]
+    if pattern and pattern != "*":
+        keep = filter_paths_by_glob([str(p) for p in paths], str(root), pattern)
+        paths = [p for p, k in zip(paths, keep) if k]
+    return paths
+
+
+def _count_masks(mask_dir: Path, path_pattern: str | None = None) -> int:
     if not mask_dir.is_dir():
         return 0
     # rglob picks up the nested `<rel>/` subtrees produced by `make mask`
     # under the consolidated layout; legacy flat trees still count correctly.
-    return sum(1 for _ in mask_dir.rglob("*_mask.png"))
+    return len(
+        _filtered_files(
+            mask_dir,
+            path_pattern,
+            lambda p: p.name.endswith("_mask.png"),
+        )
+    )
 
 
-def _count_resized() -> int:
-    if not RESIZED_DIR.is_dir():
+def _count_resized(resized_dir: Path, path_pattern: str | None = None) -> int:
+    if not resized_dir.is_dir():
         return 0
     # rglob picks up the nested `<rel>/` subtrees produced by recursive
     # resize_images.py; flat trees still count correctly.
-    return sum(
-        1
-        for p in RESIZED_DIR.rglob("*")
-        if p.is_file() and p.suffix.lower() in IMAGE_EXTS
+    return len(
+        _filtered_files(
+            resized_dir,
+            path_pattern,
+            lambda p: p.suffix.lower() in IMAGE_EXTS,
+        )
     )
 
 
@@ -756,6 +775,8 @@ class PreprocessingTab(LazyTabMixin, QWidget):
             self.dropout_edit.setText(f"{float(tag_dropout):g}")
         finally:
             self._loading_variant = False
+        if hasattr(self, "status_lbl"):
+            self._refresh_status()
 
     @staticmethod
     def _variant_preprocess_meta(variant: str) -> dict:
@@ -815,9 +836,33 @@ class PreprocessingTab(LazyTabMixin, QWidget):
     # ── Status panel ───────────────────────────────────────────────
 
     def _refresh_status(self) -> None:
-        n_resized = _count_resized()
-        caches = count_preprocess_caches(LORA_CACHE_DIR)
-        mask_n = _count_masks(MASK_DIR)
+        snapshot = self.preprocess_config_snapshot()
+
+        def _path(key: str, default: Path) -> Path:
+            raw = snapshot.get(key)
+            if not raw:
+                return default
+            p = Path(str(raw))
+            return p if p.is_absolute() else ROOT / p
+
+        preprocess_pattern = (
+            self.preprocess_path_pattern_edit.text().strip()
+            or DEFAULT_PREPROCESS_PATH_PATTERN
+        )
+        path_pattern = (
+            preprocess_pattern
+            if preprocess_pattern != DEFAULT_PREPROCESS_PATH_PATTERN
+            else str(snapshot.get("path_pattern") or DEFAULT_PREPROCESS_PATH_PATTERN)
+        )
+        n_resized = _count_resized(
+            _path("resized_image_dir", RESIZED_DIR),
+            path_pattern,
+        )
+        caches = count_preprocess_caches(
+            _path("lora_cache_dir", LORA_CACHE_DIR),
+            path_pattern,
+        )
+        mask_n = _count_masks(_path("mask_dir", MASK_DIR), path_pattern)
         if n_resized == 0:
             self.status_lbl.setText(t("preprocess_status_no_resized"))
             return
