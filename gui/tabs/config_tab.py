@@ -191,9 +191,6 @@ class ConfigTab(QWidget):
         self._save_btn.clicked.connect(self._save_preset)
         top.addWidget(self._save_btn)
 
-        # Standalone preprocessing controls live on the Preprocessing tab.
-        self.preprocess_btn: QPushButton | None = None
-
         self.train_btn = QPushButton(t("train"))
         self._train_idle_style = (
             "background:#27ae60;color:white;font-weight:bold;padding:4px 16px;"
