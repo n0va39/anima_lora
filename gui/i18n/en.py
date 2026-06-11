@@ -227,16 +227,6 @@ STRINGS: dict[str, str] = {
     "sample_prompt_tip_shift": "Flow shift (`--fs`) for the sampling sigma schedule. Blank uses train.py default 3.0.",
     "sample_prompt_tip_negative": "Negative prompt (`--n`) for this sample only.",
     "sample_prompt_tip_extra": "Additional raw sample arguments, preserved as typed.",
-    "sample_prompt_compile_title": "Sample prompt resolution is incompatible",
-    "sample_prompt_compile_range": "target_res=[{target_res}] allows torch.compile sample token counts {lo}–{hi}.",
-    "sample_prompt_compile_bad_item": "Prompt {idx}: {width}x{height} = {tokens} tokens",
-    "sample_prompt_compile_body": (
-        "At least one sample prompt resolution is outside the current torch.compile "
-        "token range:\n\n{items}\n\n"
-        "Change the sample width/height to a bucket-compatible size, include the "
-        "matching target_res tier before preprocessing/training, disable sampling, "
-        "or disable torch_compile."
-    ),
     "finished": "--- Finished (exit code {code}) ---",
     "starting": "Starting… (loading torch / accelerate)",
     # Daemon-backed training (Phase 2 — training survives GUI close)

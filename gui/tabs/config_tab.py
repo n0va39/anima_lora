@@ -68,7 +68,6 @@ from gui.progress import (
     TqdmProgressTracker,
     make_progress_bar,
 )
-from library.datasets.buckets import token_count_range
 
 _GUI_PATH_SCOPE_KEY = "path_scope"
 _FIELD_ORDER = {
@@ -744,101 +743,6 @@ class ConfigTab(QWidget):
         self._explain_mode = "sample"
         self._render_image_gallery("sample_output_title", "sample_output_empty", imgs)
 
-    @staticmethod
-    def _sample_prompt_dimensions(line: str) -> tuple[int, int]:
-        width = 512
-        height = 512
-        for part in str(line).split(" --")[1:]:
-            if m := re.match(r"w (\d+)$", part, re.IGNORECASE):
-                width = int(m.group(1))
-            elif m := re.match(r"h (\d+)$", part, re.IGNORECASE):
-                height = int(m.group(1))
-        width = max(64, width - width % 16)
-        height = max(64, height - height % 16)
-        return width, height
-
-    @staticmethod
-    def _sample_token_count(width: int, height: int) -> int:
-        return (width // 16) * (height // 16)
-
-    @staticmethod
-    def _target_res_list(value: Any) -> list[int]:
-        if isinstance(value, (list, tuple)):
-            vals = value
-        elif value is None:
-            vals = [1024]
-        else:
-            vals = [value]
-        out: list[int] = []
-        for val in vals:
-            try:
-                out.append(int(val))
-            except (TypeError, ValueError):
-                continue
-        return out or [1024]
-
-    def _invalid_sample_compile_items(self, cfg: dict[str, Any]) -> list[str]:
-        if not bool(cfg.get("torch_compile")):
-            return []
-        prompts = cfg.get("sample_prompts")
-        if not prompts:
-            return []
-        if not (
-            bool(cfg.get("sample_at_first"))
-            or int(cfg.get("sample_every_n_epochs") or 0) > 0
-            or int(cfg.get("sample_every_n_steps") or 0) > 0
-        ):
-            return []
-        if isinstance(prompts, str):
-            prompt_lines = [ln.strip() for ln in prompts.splitlines()]
-        elif isinstance(prompts, (list, tuple)):
-            prompt_lines = [str(p).strip() for p in prompts]
-        else:
-            return []
-        target_res = self._target_res_list(cfg.get("target_res"))
-        try:
-            lo, hi = token_count_range(target_res)
-        except Exception:
-            return []
-        bad: list[str] = []
-        for idx, line in enumerate(prompt_lines, start=1):
-            if not line or line.startswith("#"):
-                continue
-            width, height = self._sample_prompt_dimensions(line)
-            tokens = self._sample_token_count(width, height)
-            if tokens < lo or tokens > hi:
-                bad.append(
-                    t(
-                        "sample_prompt_compile_bad_item",
-                        idx=idx,
-                        width=width,
-                        height=height,
-                        tokens=tokens,
-                    )
-                )
-        if not bad:
-            return []
-        return [
-            t(
-                "sample_prompt_compile_range",
-                target_res=", ".join(str(v) for v in target_res),
-                lo=lo,
-                hi=hi,
-            ),
-            *bad,
-        ]
-
-    def _confirm_sample_compile_settings(self, cfg: dict[str, Any]) -> bool:
-        items = self._invalid_sample_compile_items(cfg)
-        if not items:
-            return True
-        QMessageBox.warning(
-            self,
-            t("sample_prompt_compile_title"),
-            t("sample_prompt_compile_body", items="\n".join(items)),
-        )
-        return False
-
     def _show_explain(
         self, field: str, help_text: str | None, notes: tuple[str, ...]
     ) -> None:
@@ -1285,8 +1189,6 @@ class ConfigTab(QWidget):
         # ever runs. Returns True with no prompt when there's nothing to resume.
         merged, _ = merged_gui_variant_preset(variant, self._IMPLICIT_PRESET)
         merged = self._gui_scoped_paths(merged)
-        if not self._confirm_sample_compile_settings(merged):
-            return
         if not confirm_resumable_checkpoint(self, merged):
             return
 
@@ -1317,8 +1219,6 @@ class ConfigTab(QWidget):
 
         merged, _ = merged_gui_variant_preset(variant, self._IMPLICIT_PRESET)
         merged = self._gui_scoped_paths(merged)
-        if train_after and not self._confirm_sample_compile_settings(merged):
-            return
         if train_after and not confirm_resumable_checkpoint(self, merged):
             return
 
