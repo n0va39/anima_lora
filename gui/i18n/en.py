@@ -31,9 +31,11 @@ STRINGS: dict[str, str] = {
     ),
     "preprocess_path_pattern": "Preprocess path filter:",
     "preprocess_path_pattern_tip": (
-        "fnmatch glob restricting which source images are preprocessed, matched "
-        "relative to the effective source image dir. '*' (or blank) processes "
-        "everything; '1/*' processes one subfolder; '1/*|2/*' OR-combines."
+        "path_scope is applied first to choose the effective source image root. "
+        "For example, path_scope=data_group1 makes the preprocess root "
+        "image_dataset/data_group1. This filter is then matched relative to "
+        "that root. '*' (or blank) processes everything, '1/*' processes only "
+        "data_group1/1, and '1/*|2/*' processes both subfolders."
     ),
     "preprocess_drop_lowres": "Drop low-resolution images",
     "preprocess_drop_lowres_tip": (

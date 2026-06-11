@@ -34,8 +34,10 @@ STRINGS: dict[str, str] = {
     ),
     "preprocess_path_pattern": "预处理路径过滤器:",
     "preprocess_path_pattern_tip": (
-        "相对于实际源图像目录匹配的 fnmatch glob。'*'（或空白）处理全部；"
-        "'1/*' 处理一个子文件夹；'1/*|2/*' 表示 OR 组合。"
+        "先应用 path_scope 来确定实际源图像根目录。例如 path_scope=data_group1 时，"
+        "预处理根目录是 image_dataset/data_group1。此过滤器再按该根目录的相对路径匹配。"
+        "'*'（或空白）处理全部；'1/*' 只处理 data_group1/1；"
+        "'1/*|2/*' 处理两个子文件夹。"
     ),
     "preprocess_drop_lowres": "丢弃低分辨率图像",
     "preprocess_drop_lowres_tip": (

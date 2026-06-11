@@ -30,8 +30,10 @@ STRINGS: dict[str, str] = {
     ),
     "preprocess_path_pattern": "전처리 경로 필터:",
     "preprocess_path_pattern_tip": (
-        "실제 소스 이미지 폴더 기준 상대 경로에 적용되는 fnmatch glob 필터입니다. "
-        "'*'(또는 빈 값)은 전체, '1/*'는 한 하위 폴더, '1/*|2/*'는 OR 조합입니다."
+        "path_scope가 먼저 소스 이미지 폴더를 정합니다. 예를 들어 path_scope=data_group1이면 "
+        "전처리 루트는 image_dataset/data_group1이 됩니다. 이 필터는 그 루트 기준 상대 경로에 "
+        "적용됩니다. '*'(또는 빈 값)은 전체, '1/*'는 data_group1/1 하위만, "
+        "'1/*|2/*'는 두 하위 폴더를 처리합니다."
     ),
     "preprocess_drop_lowres": "저해상도 이미지 제외",
     "preprocess_drop_lowres_tip": (

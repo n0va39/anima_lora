@@ -31,9 +31,11 @@ STRINGS: dict[str, str] = {
     ),
     "preprocess_path_pattern": "前処理パスフィルター:",
     "preprocess_path_pattern_tip": (
-        "実効ソース画像フォルダーからの相対パスに適用する fnmatch glob。"
-        "'*'(または空欄) は全件、'1/*' は1つのサブフォルダー、"
-        "'1/*|2/*' は OR 結合です。"
+        "path_scope が先に実効ソース画像ルートを決めます。"
+        "たとえば path_scope=data_group1 の場合、前処理ルートは "
+        "image_dataset/data_group1 になります。このフィルターはそのルートからの"
+        "相対パスに適用されます。'*'(または空欄) は全件、'1/*' は "
+        "data_group1/1 のみ、'1/*|2/*' は両方のサブフォルダーを処理します。"
     ),
     "preprocess_drop_lowres": "低解像度画像を除外",
     "preprocess_drop_lowres_tip": (
