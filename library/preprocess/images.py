@@ -93,6 +93,7 @@ def process_image(
         reso_steps=reso_steps,
     )
 
+    src_img = Image.open(image_path)
     save_kwargs = _collect_metadata(src_img)
     img = ImageOps.exif_transpose(src_img)
     if crop_rect is not None:
