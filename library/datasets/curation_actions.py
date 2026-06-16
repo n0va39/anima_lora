@@ -99,24 +99,44 @@ def load_curation_decisions(
     images = data.get("images") if isinstance(data, dict) else None
     if not isinstance(images, dict):
         return {}
+    strip_prefix = ""
+    add_prefix = ""
     if source_dir is not None:
         saved_source = str(data.get("source_dir") or "").replace("\\", "/")
         source = Path(source_dir)
-        candidates = {str(source).replace("\\", "/"), source.as_posix()}
-        try:
-            candidates.add(source.resolve().as_posix())
-        except OSError:
-            pass
-        try:
-            candidates.add(source.resolve().relative_to(Path.cwd().resolve()).as_posix())
-        except (OSError, ValueError):
-            pass
-        if saved_source and saved_source not in candidates:
-            return {}
+        if saved_source:
+            try:
+                cwd = Path.cwd().resolve()
+                saved_abs = (cwd / saved_source).resolve()
+                source_abs = (
+                    source.resolve()
+                    if source.is_absolute()
+                    else (cwd / source).resolve()
+                )
+                if source_abs == saved_abs:
+                    pass
+                elif source_abs.is_relative_to(saved_abs):
+                    strip_prefix = source_abs.relative_to(saved_abs).as_posix()
+                elif saved_abs.is_relative_to(source_abs):
+                    add_prefix = saved_abs.relative_to(source_abs).as_posix()
+                else:
+                    return {}
+            except OSError:
+                candidates = {str(source).replace("\\", "/"), source.as_posix()}
+                if saved_source not in candidates:
+                    return {}
     out: dict[str, dict[str, Any]] = {}
     for key, value in images.items():
         if isinstance(key, str) and isinstance(value, dict):
-            out[key.replace("\\", "/")] = dict(value)
+            norm_key = key.replace("\\", "/")
+            if strip_prefix:
+                prefix = strip_prefix.rstrip("/") + "/"
+                if not norm_key.startswith(prefix):
+                    continue
+                norm_key = norm_key[len(prefix) :]
+            elif add_prefix:
+                norm_key = f"{add_prefix.rstrip('/')}/{norm_key}"
+            out[norm_key] = dict(value)
     return out
 
 

@@ -49,6 +49,35 @@ def test_move_linked_files_preserves_layout_and_sidecars(tmp_path: Path) -> None
     assert not image.with_suffix(".txt").exists()
 
 
+def test_load_curation_decisions_rebases_to_source_subdir(tmp_path: Path) -> None:
+    from library.datasets.curation_actions import (
+        load_curation_decisions,
+        save_curation_decisions,
+    )
+
+    source = tmp_path / "image_dataset"
+    decisions_path = tmp_path / "post_image_dataset" / "curation_decisions.json"
+    save_curation_decisions(
+        decisions_path,
+        source_dir=str(source),
+        images={
+            "fuzichoco/keep.png": {"action": "use"},
+            "fuzichoco/skip.png": {"action": "skip"},
+            "other/skip.png": {"action": "skip"},
+        },
+    )
+
+    decisions = load_curation_decisions(
+        decisions_path,
+        source_dir=source / "fuzichoco",
+    )
+
+    assert decisions == {
+        "keep.png": {"action": "use"},
+        "skip.png": {"action": "skip"},
+    }
+
+
 def test_walk_images_flat(tmp_path: Path) -> None:
     from library.preprocess import walk_images
 
@@ -367,6 +396,7 @@ def test_resize_to_buckets_applies_curation_skip_decision(tmp_path: Path) -> Non
     dst = tmp_path / "dst"
     _write_image(src / "keep.png", (900, 900))
     _write_image(src / "skip.png", (900, 900))
+    _write_image(src / "move.png", (900, 900))
 
     stats, bucket_counts = resize_to_buckets(
         src,
@@ -377,16 +407,19 @@ def test_resize_to_buckets_applies_curation_skip_decision(tmp_path: Path) -> Non
         curation_decisions={
             "keep.png": {"action": "use"},
             "skip.png": {"action": "skip"},
+            "move.png": {"action": "move"},
         },
     )
 
-    assert stats.seen == 2
-    assert stats.skipped == 1
+    assert stats.seen == 3
+    assert stats.skipped == 2
     assert stats.written == 1
     assert sum(bucket_counts.values()) == 1
     assert (dst / "keep.png").exists()
     assert not (dst / "skip.png").exists()
+    assert not (dst / "move.png").exists()
     assert (src / "skip.png").exists()
+    assert (src / "move.png").exists()
 
 
 def test_resize_to_buckets_applies_curation_crop_to_output_only(

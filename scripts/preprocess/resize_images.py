@@ -125,7 +125,7 @@ def main() -> None:
         dest="curation_decisions",
         default=None,
         help=(
-            "Optional GUI curation decision JSON. Images marked action=skip are "
+            "Optional GUI curation decision JSON. Images marked action=skip/move are "
             "left out, and crop_bounds are applied only to generated resized "
             "outputs. Source images are not modified."
         ),

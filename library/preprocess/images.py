@@ -219,7 +219,7 @@ def resize_to_buckets(
         skipped_by_decision: list[Path] = []
         for p in image_files:
             decision = decisions.get(_rel_key(p), {})
-            if decision.get("action") == "skip":
+            if decision.get("action") in {"skip", "move"}:
                 skipped_by_decision.append(p)
                 continue
             crop_rect = crop_rect_from_decision(decision.get("crop_bounds"))
