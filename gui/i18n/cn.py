@@ -315,6 +315,8 @@ STRINGS: dict[str, str] = {
     "dataset_preprocess_decision_crop": "预处理决定: 应用裁剪",
     "dataset_preprocess_decision_use_crop": "预处理决定: 使用 + 应用裁剪",
     "dataset_preprocess_decision_skip_crop": "预处理决定: 跳过（已保存裁剪，但跳过优先）",
+    "dataset_preprocess_decision_move": "当前状态: 已标记为移动",
+    "dataset_preprocess_decision_move_crop": "当前状态: 已标记为移动（裁剪范围也已保存）",
     "dataset_crop_preview": "显示裁剪",
     "dataset_crop_preview_tooltip": "预览预处理 resize 阶段将应用的裁剪范围。不会修改源文件。",
     "dataset_crop_margin": "边距:",

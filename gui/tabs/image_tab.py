@@ -698,13 +698,13 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self.preprocess_use_btn = QPushButton(t("dataset_preprocess_use_short"))
         self.preprocess_use_btn.setToolTip(t("dataset_preprocess_use_tooltip"))
         self.preprocess_use_btn.clicked.connect(
-            lambda: self._set_current_preprocess_decision("use")
+            lambda: self._set_current_preprocess_decision("use", advance=True)
         )
         img_head.addWidget(self.preprocess_use_btn)
         self.preprocess_skip_btn = QPushButton(t("dataset_preprocess_skip_short"))
         self.preprocess_skip_btn.setToolTip(t("dataset_preprocess_skip_tooltip"))
         self.preprocess_skip_btn.clicked.connect(
-            lambda: self._set_current_preprocess_decision("skip")
+            lambda: self._set_current_preprocess_decision("skip", advance=True)
         )
         img_head.addWidget(self.preprocess_skip_btn)
         self.preprocess_clear_btn = QPushButton(t("dataset_preprocess_clear_short"))
@@ -858,7 +858,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         # Both act per-current-image and are scoped to the tree (WidgetShortcut)
         # so they don't hijack the caption editor on focus.
         for target in (self.tree, self.img):
-            move_sc = QShortcut(QKeySequence("D"), target, self._toggle_mark_current)
+            move_sc = QShortcut(QKeySequence("D"), target, self._mark_current_for_move)
             move_sc.setContext(Qt.WidgetShortcut)
         _del = QShortcut(QKeySequence.Delete, self.tree, self._toggle_mark_current)
         _del.setContext(Qt.WidgetShortcut)
@@ -868,13 +868,13 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             use_sc = QShortcut(
                 QKeySequence("A"),
                 target,
-                lambda: self._set_current_preprocess_decision("use"),
+                lambda: self._set_current_preprocess_decision("use", advance=True),
             )
             use_sc.setContext(Qt.WidgetShortcut)
             skip_sc = QShortcut(
                 QKeySequence("S"),
                 target,
-                lambda: self._set_current_preprocess_decision("skip"),
+                lambda: self._set_current_preprocess_decision("skip", advance=True),
             )
             skip_sc.setContext(Qt.WidgetShortcut)
             clear_sc = QShortcut(
@@ -1836,7 +1836,9 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             return self._images[idx]
         return None
 
-    def _set_current_preprocess_decision(self, action: str) -> None:
+    def _set_current_preprocess_decision(
+        self, action: str, *, advance: bool = False
+    ) -> None:
         path = self._current_image_path()
         if path is None or action not in {"use", "skip"}:
             return
@@ -1844,6 +1846,8 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._mark_preprocess_dirty()
         self._refresh_mark_styles()
         self._refresh_preprocess_controls()
+        if advance:
+            self._nav(1)
 
     def _clear_current_preprocess_decision(self) -> None:
         path = self._current_image_path()
@@ -1861,6 +1865,10 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
     def _preprocess_decision_text(self, path: Path | None) -> str:
         if path is None:
             return t("dataset_preprocess_decision_none")
+        if path in self._marked:
+            if path in self._crop_bounds:
+                return t("dataset_preprocess_decision_move_crop")
+            return t("dataset_preprocess_decision_move")
         action = self._preprocess_decisions.get(path)
         crop = path in self._crop_bounds
         if action == "skip" and crop:
@@ -1900,6 +1908,17 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             self._marked.add(p)
         self._refresh_mark_styles()
         self._refresh_delete_button()
+        self._refresh_preprocess_controls()
+
+    def _mark_current_for_move(self) -> None:
+        idx = self._current_index()
+        if not 0 <= idx < len(self._images):
+            return
+        self._marked.add(self._images[idx])
+        self._refresh_mark_styles()
+        self._refresh_delete_button()
+        self._refresh_preprocess_controls()
+        self._nav(1)
 
     def _refresh_mark_styles(self) -> None:
         """Repaint tree leaves by pending source-delete/preprocess state.
@@ -1932,6 +1951,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._marked.discard(p)
         self._refresh_mark_styles()
         self._refresh_delete_button()
+        self._refresh_preprocess_controls()
 
     def _clear_marks(self) -> None:
         """Deselect every move target."""
@@ -1940,6 +1960,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._marked.clear()
         self._refresh_mark_styles()
         self._refresh_delete_button()
+        self._refresh_preprocess_controls()
 
     def _refresh_delete_button(self) -> None:
         n = len(self._marked)

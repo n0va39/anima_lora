@@ -378,6 +378,8 @@ STRINGS: dict[str, str] = {
     "dataset_preprocess_decision_crop": "Preprocess decision: apply crop",
     "dataset_preprocess_decision_use_crop": "Preprocess decision: use + apply crop",
     "dataset_preprocess_decision_skip_crop": "Preprocess decision: skip (crop is saved, but skip wins)",
+    "dataset_preprocess_decision_move": "Current state: marked to move",
+    "dataset_preprocess_decision_move_crop": "Current state: marked to move (crop bounds also saved)",
     "dataset_crop_preview": "Show crop",
     "dataset_crop_preview_tooltip": "Preview the crop bounds that preprocess resize will apply. Source files are not modified.",
     "dataset_crop_margin": "Margin:",

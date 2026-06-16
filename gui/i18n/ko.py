@@ -365,6 +365,8 @@ STRINGS: dict[str, str] = {
     "dataset_preprocess_decision_crop": "전처리 결정: 크롭 적용",
     "dataset_preprocess_decision_use_crop": "전처리 결정: 사용 + 크롭 적용",
     "dataset_preprocess_decision_skip_crop": "전처리 결정: 생략 (크롭은 저장되지만 생략이 우선합니다)",
+    "dataset_preprocess_decision_move": "현재 상태: 이동 예정",
+    "dataset_preprocess_decision_move_crop": "현재 상태: 이동 예정 (크롭 범위도 저장됨)",
     "dataset_crop_preview": "크롭 표시",
     "dataset_crop_preview_tooltip": "전처리 resize 단계에서 적용될 크롭 범위를 미리 봅니다. 원본 파일은 변경하지 않습니다.",
     "dataset_crop_margin": "여백:",

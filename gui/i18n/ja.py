@@ -327,6 +327,8 @@ STRINGS: dict[str, str] = {
     "dataset_preprocess_decision_crop": "前処理決定: クロップ適用",
     "dataset_preprocess_decision_use_crop": "前処理決定: 使用 + クロップ適用",
     "dataset_preprocess_decision_skip_crop": "前処理決定: スキップ (クロップは保存されますがスキップが優先されます)",
+    "dataset_preprocess_decision_move": "現在の状態: 移動予定",
+    "dataset_preprocess_decision_move_crop": "現在の状態: 移動予定 (クロップ範囲も保存済み)",
     "dataset_crop_preview": "クロップ表示",
     "dataset_crop_preview_tooltip": "前処理 resize で適用されるクロップ範囲をプレビューします。元ファイルは変更しません。",
     "dataset_crop_margin": "余白:",
