@@ -758,8 +758,9 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             crop_row.addWidget(QLabel(label))
             spin = QSpinBox()
             spin.setRange(0, 95)
-            spin.setSuffix("%")
-            spin.setFixedWidth(62)
+            spin.setAlignment(Qt.AlignRight)
+            spin.setSuffix(" %")
+            spin.setFixedWidth(74)
             spin.setToolTip(t("dataset_crop_margin_tooltip"))
             self.crop_margin_spins[key] = spin
             crop_row.addWidget(spin)
@@ -1760,10 +1761,31 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._syncing_crop_controls = True
         try:
             self.crop_preview_cb.setChecked(self._crop_preview_enabled)
+            margins = self._crop_margin_values_for_path(path)
+            for key, value in margins.items():
+                self.crop_margin_spins[key].setValue(value)
         finally:
             self._syncing_crop_controls = False
         self._refresh_crop_overlay(path)
         self._refresh_preprocess_controls()
+
+    def _crop_margin_values_for_path(self, path: Path | None) -> dict[str, int]:
+        empty = {"left": 0, "top": 0, "right": 0, "bottom": 0}
+        if path is None:
+            return empty
+        bounds = self._crop_bounds.get(path)
+        if bounds is None:
+            return empty
+        width, height = self._image_size(path)
+        if width <= 0 or height <= 0:
+            return empty
+        x, y, crop_w, crop_h = bounds
+        return {
+            "left": max(0, round(x * 100 / width)),
+            "top": max(0, round(y * 100 / height)),
+            "right": max(0, round((width - x - crop_w) * 100 / width)),
+            "bottom": max(0, round((height - y - crop_h) * 100 / height)),
+        }
 
     def _refresh_crop_overlay(self, path: Path | None) -> None:
         if path is None:
@@ -1796,16 +1818,28 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         path = self._current_image_path()
         if path is None:
             return
+        margins = {
+            "left": self.crop_margin_spins["left"].value(),
+            "top": self.crop_margin_spins["top"].value(),
+            "right": self.crop_margin_spins["right"].value(),
+            "bottom": self.crop_margin_spins["bottom"].value(),
+        }
+        if all(value == 0 for value in margins.values()):
+            self._crop_preview_enabled = False
+            self._store_crop_bounds(path, None)
+            self._refresh_crop_controls(path)
+            self._refresh_mark_styles()
+            return
         width, height = self._image_size(path)
         if width <= 0 or height <= 0:
             return
         rect = inset_crop_rect_by_percent(
             image_width=width,
             image_height=height,
-            left=self.crop_margin_spins["left"].value(),
-            top=self.crop_margin_spins["top"].value(),
-            right=self.crop_margin_spins["right"].value(),
-            bottom=self.crop_margin_spins["bottom"].value(),
+            left=margins["left"],
+            top=margins["top"],
+            right=margins["right"],
+            bottom=margins["bottom"],
         )
         self._crop_preview_enabled = True
         self._store_crop_bounds(path, rect)
