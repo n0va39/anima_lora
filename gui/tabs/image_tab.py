@@ -56,6 +56,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QTextBrowser,
     QTextEdit,
+    QToolButton,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -726,9 +727,16 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         )
         self.delete_btn.clicked.connect(self._delete_marked)
         img_head.addWidget(self.delete_btn)
-        self.cancel_mark_btn = QPushButton(t("dataset_delete_clear"))
+        self.cancel_mark_btn = QToolButton()
+        self.cancel_mark_btn.setText(t("dataset_delete_clear"))
         self.cancel_mark_btn.setToolTip(t("dataset_delete_clear_tooltip"))
-        self.cancel_mark_btn.clicked.connect(self._clear_marks)
+        self.cancel_mark_btn.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.cancel_mark_btn.setPopupMode(QToolButton.MenuButtonPopup)
+        self.cancel_mark_btn.clicked.connect(self._unmark_current)
+        clear_menu = QMenu(self.cancel_mark_btn)
+        clear_all_action = clear_menu.addAction(t("dataset_delete_clear_all"))
+        clear_all_action.triggered.connect(self._clear_marks)
+        self.cancel_mark_btn.setMenu(clear_menu)
         img_head.addWidget(self.cancel_mark_btn)
         img_head.addStretch()
         rl.addLayout(img_head)
@@ -849,6 +857,9 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         # Delete toggles the move mark on the current image; Esc un-marks it.
         # Both act per-current-image and are scoped to the tree (WidgetShortcut)
         # so they don't hijack the caption editor on focus.
+        for target in (self.tree, self.img):
+            move_sc = QShortcut(QKeySequence("D"), target, self._toggle_mark_current)
+            move_sc.setContext(Qt.WidgetShortcut)
         _del = QShortcut(QKeySequence.Delete, self.tree, self._toggle_mark_current)
         _del.setContext(Qt.WidgetShortcut)
         _esc = QShortcut(QKeySequence(Qt.Key_Escape), self.tree, self._unmark_current)
@@ -1911,7 +1922,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
                 leaf.setData(0, Qt.ForegroundRole, None)
 
     def _unmark_current(self) -> None:
-        """Remove the deletion mark from the currently selected image (Esc)."""
+        """Remove the move mark from the currently selected image."""
         idx = self._current_index()
         if not 0 <= idx < len(self._images):
             return
@@ -1923,7 +1934,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._refresh_delete_button()
 
     def _clear_marks(self) -> None:
-        """Deselect every deletion target (취소 button)."""
+        """Deselect every move target."""
         if not self._marked:
             return
         self._marked.clear()
