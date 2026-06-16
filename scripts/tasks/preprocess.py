@@ -318,6 +318,8 @@ def cmd_preprocess_te(extra):
             _path("source_image_dir", "image_dataset"),
             "--cache_dir",
             _path("lora_cache_dir", "post_image_dataset/lora"),
+            "--match_images_from",
+            _path("resized_image_dir", "post_image_dataset/resized"),
             "--qwen3",
             "models/text_encoders/qwen_3_06b_base.safetensors",
             "--dit",

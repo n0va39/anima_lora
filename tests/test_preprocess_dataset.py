@@ -267,6 +267,35 @@ def test_count_pending_text_min_pixels_filter(tmp_path: Path) -> None:
     assert count_pending_text(data, min_pixels=1000) == (1, 1)
 
 
+def test_count_pending_text_keep_rel_stems_filters_nested_paths(tmp_path: Path) -> None:
+    from library.preprocess import count_pending_text
+    from library.preprocess.text import _te_cache_path
+
+    data = tmp_path / "imgs"
+    cache = tmp_path / "cache"
+    _write_image(data / "charA" / "cover.png", (64, 64))
+    _write_image(data / "charB" / "cover.png", (64, 64))
+
+    assert count_pending_text(
+        data,
+        cache_dir=cache,
+        recursive=True,
+        keep_rel_stems={"charA/cover"},
+        min_pixels=0,
+    ) == (1, 1)
+
+    te = _te_cache_path(data / "charA" / "cover.png", cache, data)
+    te.parent.mkdir(parents=True, exist_ok=True)
+    te.touch()
+    assert count_pending_text(
+        data,
+        cache_dir=cache,
+        recursive=True,
+        keep_rel_stems={"charA/cover"},
+        min_pixels=0,
+    ) == (0, 1)
+
+
 # ---------------------------------------------------------------------------
 # Model-free end-to-end coverage for the loops moved into library/preprocess/
 # (item A of the proposal). cache_pe_features / cache_latents /
