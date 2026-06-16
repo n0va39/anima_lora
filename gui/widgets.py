@@ -13,7 +13,7 @@ import re
 from typing import Any
 
 from PySide6.QtCore import QPointF, QSize, Qt, Signal
-from PySide6.QtGui import QPainter, QPixmap
+from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -840,6 +840,8 @@ class ScaledImageLabel(QLabel):
     def __init__(self):
         super().__init__()
         self._src: QPixmap | None = None
+        self._crop_rect: tuple[int, int, int, int] | None = None
+        self._final_crop_rect: tuple[int, int, int, int] | None = None
         self._zoom = 1.0
         # Top-left of the drawn image in widget coords; None = auto-centered.
         self._tl: QPointF | None = None
@@ -848,11 +850,25 @@ class ScaledImageLabel(QLabel):
 
     def set_source(self, pm: QPixmap):
         self._src = pm
+        self._crop_rect = None
+        self._final_crop_rect = None
         self._reset_zoom()
+        self.update()
+
+    def set_crop_rect(
+        self,
+        crop_rect: tuple[int, int, int, int] | None,
+        *,
+        final_rect: tuple[int, int, int, int] | None = None,
+    ) -> None:
+        self._crop_rect = crop_rect
+        self._final_crop_rect = final_rect
         self.update()
 
     def clear(self):
         self._src = None
+        self._crop_rect = None
+        self._final_crop_rect = None
         self._reset_zoom()
         super().clear()
 
@@ -911,6 +927,46 @@ class ScaledImageLabel(QLabel):
         painter.drawPixmap(
             int(round(tl.x())), int(round(tl.y())), d.width(), d.height(), self._src
         )
+        self._paint_crop_overlay(painter, tl, d)
+
+    def _paint_crop_overlay(self, painter: QPainter, tl: QPointF, d: QSize) -> None:
+        if self._src is None or self._src.isNull() or self._crop_rect is None:
+            return
+        red_rect = self._display_rect_for_image_rect(self._crop_rect, tl, d)
+        if red_rect is None:
+            return
+        painter.save()
+        try:
+            rx, ry, rw, rh = red_rect
+            painter.setBrush(Qt.NoBrush)
+            painter.setPen(QPen(QColor("#e74c3c"), 2, Qt.SolidLine))
+            painter.drawRect(rx, ry, rw, rh)
+            green_rect = self._display_rect_for_image_rect(self._final_crop_rect, tl, d)
+            if green_rect is not None:
+                gx, gy, gw, gh = green_rect
+                painter.setPen(QPen(QColor("#2ecc71"), 2, Qt.DashLine))
+                painter.drawRect(gx, gy, gw, gh)
+        finally:
+            painter.restore()
+
+    def _display_rect_for_image_rect(
+        self,
+        rect: tuple[int, int, int, int] | None,
+        tl: QPointF,
+        d: QSize,
+    ) -> tuple[int, int, int, int] | None:
+        if rect is None or self._src is None or self._src.isNull():
+            return None
+        x, y, w, h = rect
+        if w <= 0 or h <= 0:
+            return None
+        scale_x = d.width() / self._src.width()
+        scale_y = d.height() / self._src.height()
+        rx = int(round(tl.x() + x * scale_x))
+        ry = int(round(tl.y() + y * scale_y))
+        rw = max(1, int(round(w * scale_x)))
+        rh = max(1, int(round(h * scale_y)))
+        return (rx, ry, rw, rh)
 
     def wheelEvent(self, ev):
         if not (ev.modifiers() & Qt.ControlModifier):

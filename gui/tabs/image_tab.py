@@ -23,7 +23,9 @@ from PySide6.QtGui import (
     QColor,
     QDesktopServices,
     QFont,
+    QFontDatabase,
     QImage,
+    QImageReader,
     QKeySequence,
     QPainter,
     QPen,
@@ -50,6 +52,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QSplitter,
+    QSpinBox,
     QTextBrowser,
     QTextEdit,
     QTreeWidget,
@@ -72,6 +75,14 @@ from gui._job_mixin import DaemonJobMixin
 from gui.i18n import t
 from gui.progress import TqdmProgressTracker, make_progress_bar
 from gui.theme import tok
+from library.datasets.curation_actions import (
+    center_crop_rect_for_resize_bucket_within,
+    inset_crop_rect_by_percent,
+    linked_paths,
+    load_curation_decisions,
+    rel_key,
+    save_curation_decisions,
+)
 
 # Stdio protocol sentinels of the resident autotag worker (kept in sync with
 # ``scripts/anima_tagger/autotag_server.py``). Hardcoded rather than imported
@@ -92,6 +103,19 @@ _MASK_OVERLAY_COLOR_OPAQUE = QColor(255, 60, 60, 255)
 _MASK_OVERLAY_OPACITY = 0.55
 
 _DELETE_MARK_COLOR = QColor("#e74c3c")
+_SKIP_MARK_COLOR = QColor("#f39c12")
+_CROP_MARK_COLOR = QColor("#2ecc71")
+
+
+def _format_file_size(size: int) -> str:
+    units = ("B", "KB", "MB", "GB")
+    value = float(max(0, size))
+    for unit in units:
+        if value < 1024 or unit == units[-1]:
+            if unit == "B":
+                return f"{int(value)} {unit}"
+            return f"{value:.1f} {unit}"
+        value /= 1024
 
 
 def _resolve_mask_path(image_path: Path, current_dir: Path | None) -> Path | None:
@@ -572,6 +596,13 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         # Images marked for deletion. Keyed by full path so a mark survives
         # filter/sort/view rebuilds; cleared when the dir changes.
         self._marked: set[Path] = set()
+        # GUI curation decisions consumed by the preprocess resize step. These
+        # never move/edit source files; they only write a JSON sidecar that
+        # resize_images.py reads when present.
+        self._preprocess_decisions: dict[Path, str] = {}
+        self._crop_bounds: dict[Path, tuple[int, int, int, int]] = {}
+        self._crop_preview_enabled = False
+        self._syncing_crop_controls = False
         # _overlay_pm is lazily composed on first toggle and cached so flipping
         # the checkbox doesn't re-run the QPainter pipeline.
         self._source_pm: QPixmap | None = None
@@ -660,6 +691,28 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self.overlay_cb.setEnabled(False)
         self.overlay_cb.toggled.connect(self._on_overlay_toggled)
         img_head.addWidget(self.overlay_cb)
+        self.preprocess_use_btn = QPushButton(t("dataset_preprocess_use_short"))
+        self.preprocess_use_btn.setToolTip(t("dataset_preprocess_use_tooltip"))
+        self.preprocess_use_btn.clicked.connect(
+            lambda: self._set_current_preprocess_decision("use")
+        )
+        img_head.addWidget(self.preprocess_use_btn)
+        self.preprocess_skip_btn = QPushButton(t("dataset_preprocess_skip_short"))
+        self.preprocess_skip_btn.setToolTip(t("dataset_preprocess_skip_tooltip"))
+        self.preprocess_skip_btn.clicked.connect(
+            lambda: self._set_current_preprocess_decision("skip")
+        )
+        img_head.addWidget(self.preprocess_skip_btn)
+        self.preprocess_clear_btn = QPushButton(t("dataset_preprocess_clear_short"))
+        self.preprocess_clear_btn.setToolTip(t("dataset_preprocess_clear_tooltip"))
+        self.preprocess_clear_btn.clicked.connect(
+            self._clear_current_preprocess_decision
+        )
+        img_head.addWidget(self.preprocess_clear_btn)
+        self.preprocess_save_btn = QPushButton(t("dataset_preprocess_save"))
+        self.preprocess_save_btn.setToolTip(t("dataset_preprocess_save_tooltip"))
+        self.preprocess_save_btn.clicked.connect(self._save_preprocess_decisions)
+        img_head.addWidget(self.preprocess_save_btn)
         self.delete_btn = QPushButton(t("dataset_delete"))
         self.delete_btn.setToolTip(t("dataset_delete_tooltip"))
         self.delete_btn.setStyleSheet(
@@ -675,10 +728,61 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         img_head.addStretch()
         rl.addLayout(img_head)
 
+        crop_row = QHBoxLayout()
+        crop_row.setContentsMargins(0, 0, 0, 0)
+        self.crop_preview_cb = QCheckBox(t("dataset_crop_preview"))
+        self.crop_preview_cb.setToolTip(t("dataset_crop_preview_tooltip"))
+        self.crop_preview_cb.toggled.connect(self._on_crop_preview_toggled)
+        crop_row.addWidget(self.crop_preview_cb)
+        crop_row.addWidget(QLabel(t("dataset_crop_margin")))
+        self.crop_margin_spins: dict[str, QSpinBox] = {}
+        for key, label in (
+            ("left", t("dataset_crop_margin_left")),
+            ("top", t("dataset_crop_margin_top")),
+            ("right", t("dataset_crop_margin_right")),
+            ("bottom", t("dataset_crop_margin_bottom")),
+        ):
+            crop_row.addWidget(QLabel(label))
+            spin = QSpinBox()
+            spin.setRange(0, 95)
+            spin.setSuffix("%")
+            spin.setFixedWidth(62)
+            spin.setToolTip(t("dataset_crop_margin_tooltip"))
+            self.crop_margin_spins[key] = spin
+            crop_row.addWidget(spin)
+        self.crop_margin_apply_btn = QPushButton(t("dataset_crop_margin_apply"))
+        self.crop_margin_apply_btn.setToolTip(t("dataset_crop_margin_apply_tooltip"))
+        self.crop_margin_apply_btn.clicked.connect(self._apply_crop_margins)
+        crop_row.addWidget(self.crop_margin_apply_btn)
+        self.crop_clear_btn = QPushButton(t("dataset_crop_clear"))
+        self.crop_clear_btn.setToolTip(t("dataset_crop_clear_tooltip"))
+        self.crop_clear_btn.clicked.connect(self._clear_current_crop)
+        crop_row.addWidget(self.crop_clear_btn)
+        self.crop_label = QLabel("")
+        self.crop_label.setFixedWidth(300)
+        self.crop_label.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
+        crop_row.addWidget(self.crop_label)
+        crop_row.addStretch()
+        rl.addLayout(crop_row)
+
         self.img = ScaledImageLabel()
         self.img.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.img.setMinimumSize(400, 400)
         rl.addWidget(self.img, 1)
+
+        self.image_meta = QLabel(t("dataset_image_meta_empty"))
+        self.image_meta.setTextFormat(Qt.RichText)
+        self.image_meta.setMinimumWidth(360)
+        self.image_meta.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
+        self.image_meta.setStyleSheet(
+            f"QLabel {{ color:{tok('text_dim')}; padding:2px 0; }}"
+        )
+        rl.addWidget(self.image_meta)
+        self.preprocess_decision_label = QLabel(t("dataset_preprocess_decision_none"))
+        self.preprocess_decision_label.setStyleSheet(
+            f"QLabel {{ color:{tok('text_dim')}; padding:2px 0; }}"
+        )
+        rl.addWidget(self.preprocess_decision_label)
 
         cap_head = QHBoxLayout()
         self.cap_label = QLabel(t("caption"))
@@ -742,7 +846,27 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         _del.setContext(Qt.WidgetShortcut)
         _esc = QShortcut(QKeySequence(Qt.Key_Escape), self.tree, self._unmark_current)
         _esc.setContext(Qt.WidgetShortcut)
+        for target in (self.tree, self.img):
+            use_sc = QShortcut(
+                QKeySequence("A"),
+                target,
+                lambda: self._set_current_preprocess_decision("use"),
+            )
+            use_sc.setContext(Qt.WidgetShortcut)
+            skip_sc = QShortcut(
+                QKeySequence("S"),
+                target,
+                lambda: self._set_current_preprocess_decision("skip"),
+            )
+            skip_sc.setContext(Qt.WidgetShortcut)
+            clear_sc = QShortcut(
+                QKeySequence("F"),
+                target,
+                self._clear_current_preprocess_decision,
+            )
+            clear_sc.setContext(Qt.WidgetShortcut)
         self._refresh_delete_button()
+        self._refresh_preprocess_controls()
 
     def _lazy_init(self) -> None:
         if self._dirs:
@@ -1022,8 +1146,12 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         if d != self._current_dir:
             # Deletion marks are path-scoped to one dir; drop them on a switch.
             self._marked.clear()
+            self._preprocess_decisions.clear()
+            self._crop_bounds.clear()
             self._refresh_delete_button()
+            self._refresh_preprocess_controls()
         self._current_dir = d
+        self._load_preprocess_decisions()
         self._load_groups()  # reload the group manifest for the tree folds
         self._all_images = _imgs(d)
         had_match = self._apply_filter_and_sort(prev_stem=prev_stem)
@@ -1031,6 +1159,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             self._current_caption_path = None
             self._set_caption_text("")
             self._disk_text = ""
+            self._set_image_none()
             self._refresh_buttons()
             self._refresh_inline_diff()
         elif not had_match:
@@ -1359,6 +1488,76 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self.dc.addItem(label)
         self.dc.setCurrentText(label)
 
+    def _curation_decisions_path(self) -> Path:
+        return ROOT / "post_image_dataset" / "curation_decisions.json"
+
+    def _current_source_label(self) -> str:
+        if self._current_dir is None:
+            return ""
+        try:
+            return self._current_dir.relative_to(ROOT).as_posix()
+        except ValueError:
+            return str(self._current_dir).replace("\\", "/")
+
+    def _load_preprocess_decisions(self) -> None:
+        self._preprocess_decisions.clear()
+        self._crop_bounds.clear()
+        if self._current_dir is None:
+            return
+        path = self._curation_decisions_path()
+        if not path.is_file():
+            return
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        if data.get("source_dir") != self._current_source_label():
+            return
+        decisions = load_curation_decisions(path)
+        for key, value in decisions.items():
+            path = self._current_dir / key
+            action = str(value.get("action") or "").strip()
+            if action in {"use", "skip"}:
+                self._preprocess_decisions[path] = action
+            crop = value.get("crop_bounds")
+            if isinstance(crop, list | tuple) and len(crop) == 4:
+                try:
+                    self._crop_bounds[path] = tuple(int(v) for v in crop)
+                except (TypeError, ValueError):
+                    pass
+
+    def _save_preprocess_decisions(self) -> None:
+        if self._current_dir is None:
+            return
+        images: dict[str, dict] = {}
+        for path in sorted(
+            set(self._preprocess_decisions) | set(self._crop_bounds),
+            key=lambda p: rel_key(p, self._current_dir),
+        ):
+            item: dict = {}
+            action = self._preprocess_decisions.get(path)
+            if action in {"use", "skip"}:
+                item["action"] = action
+            crop = self._crop_bounds.get(path)
+            if crop is not None:
+                item["crop_bounds"] = list(crop)
+            if item:
+                images[rel_key(path, self._current_dir)] = item
+        save_curation_decisions(
+            self._curation_decisions_path(),
+            source_dir=self._current_source_label(),
+            images=images,
+        )
+        self.preprocess_save_btn.setText(t("dataset_preprocess_save"))
+        QMessageBox.information(
+            self,
+            t("dataset_preprocess_save"),
+            t("dataset_preprocess_saved", path=str(self._curation_decisions_path())),
+        )
+
+    def _mark_preprocess_dirty(self) -> None:
+        self.preprocess_save_btn.setText(t("dataset_preprocess_save") + " *")
+
     def _on_tree_item_changed(self, current, _previous) -> None:
         """Show the image for the newly selected tree leaf.
 
@@ -1399,6 +1598,9 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             text = ""
         self._disk_text = text
         self._set_caption_text(text if text else "")
+        self._refresh_image_meta(p)
+        self._refresh_crop_controls(p)
+        self._refresh_preprocess_controls()
         self._refresh_buttons()
         self._refresh_inline_diff()
 
@@ -1427,6 +1629,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
 
     def _on_overlay_toggled(self, _checked: bool) -> None:
         self._apply_image_view()
+        self._refresh_crop_overlay(self._current_image_path())
 
     def _current_index(self) -> int:
         """Index into ``self._images`` of the currently selected image.
@@ -1470,6 +1673,194 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
                 return self._images[idx]
         return None
 
+    def _image_size(self, path: Path) -> tuple[int, int]:
+        size = QImageReader(str(path)).size()
+        return (max(0, size.width()), max(0, size.height()))
+
+    def _refresh_image_meta(self, path: Path | None) -> None:
+        if path is None:
+            self.image_meta.setText(t("dataset_image_meta_empty"))
+            return
+        width, height = self._image_size(path)
+        try:
+            file_size = path.stat().st_size
+        except OSError:
+            file_size = 0
+        fmt = path.suffix.lstrip(".").upper() or "?"
+        self.image_meta.setText(
+            t(
+                "dataset_image_meta",
+                width=width,
+                height=height,
+                size=_format_file_size(file_size),
+                fmt=escape(fmt),
+            )
+        )
+
+    def _full_crop_bounds_for_path(
+        self, path: Path
+    ) -> tuple[int, int, int, int] | None:
+        width, height = self._image_size(path)
+        if width <= 0 or height <= 0:
+            return None
+        return (0, 0, width, height)
+
+    def _store_crop_bounds(
+        self, path: Path, rect: tuple[int, int, int, int] | None
+    ) -> None:
+        full = self._full_crop_bounds_for_path(path)
+        if rect is None or rect == full:
+            self._crop_bounds.pop(path, None)
+        else:
+            self._crop_bounds[path] = rect
+        self._mark_preprocess_dirty()
+
+    def _preview_crop_bounds_for_path(
+        self, path: Path
+    ) -> tuple[int, int, int, int] | None:
+        if not self._crop_preview_enabled:
+            return None
+        return self._crop_bounds.get(path) or self._full_crop_bounds_for_path(path)
+
+    def _preview_crop_rect_for_path(
+        self, path: Path
+    ) -> tuple[int, int, int, int] | None:
+        bounds = self._preview_crop_bounds_for_path(path)
+        if bounds is None:
+            return None
+        return center_crop_rect_for_resize_bucket_within(bounds)
+
+    def _on_crop_preview_toggled(self, checked: bool) -> None:
+        if self._syncing_crop_controls:
+            return
+        self._crop_preview_enabled = checked
+        path = self._current_image_path()
+        self._refresh_crop_overlay(path)
+        self._refresh_preprocess_controls()
+
+    def _refresh_crop_controls(self, path: Path | None) -> None:
+        self._syncing_crop_controls = True
+        try:
+            self.crop_preview_cb.setChecked(self._crop_preview_enabled)
+        finally:
+            self._syncing_crop_controls = False
+        self._refresh_crop_overlay(path)
+        self._refresh_preprocess_controls()
+
+    def _refresh_crop_overlay(self, path: Path | None) -> None:
+        if path is None:
+            self.img.set_crop_rect(None)
+            self.crop_label.setText("")
+            return
+        crop_bounds = self._preview_crop_bounds_for_path(path)
+        crop_rect = self._preview_crop_rect_for_path(path)
+        self.img.set_crop_rect(crop_bounds, final_rect=crop_rect)
+        if crop_rect is None:
+            self.crop_label.setText("")
+            return
+        bx, by, bw, bh = crop_bounds or crop_rect
+        x, y, w, h = crop_rect
+        self.crop_label.setText(
+            t(
+                "dataset_crop_rect",
+                bx=bx,
+                by=by,
+                bw=bw,
+                bh=bh,
+                x=x,
+                y=y,
+                w=w,
+                h=h,
+            )
+        )
+
+    def _apply_crop_margins(self) -> None:
+        path = self._current_image_path()
+        if path is None:
+            return
+        width, height = self._image_size(path)
+        if width <= 0 or height <= 0:
+            return
+        rect = inset_crop_rect_by_percent(
+            image_width=width,
+            image_height=height,
+            left=self.crop_margin_spins["left"].value(),
+            top=self.crop_margin_spins["top"].value(),
+            right=self.crop_margin_spins["right"].value(),
+            bottom=self.crop_margin_spins["bottom"].value(),
+        )
+        self._crop_preview_enabled = True
+        self._store_crop_bounds(path, rect)
+        self._refresh_crop_controls(path)
+        self._refresh_mark_styles()
+
+    def _clear_current_crop(self) -> None:
+        path = self._current_image_path()
+        if path is None or path not in self._crop_bounds:
+            return
+        self._crop_bounds.pop(path, None)
+        self._mark_preprocess_dirty()
+        self._refresh_crop_controls(path)
+        self._refresh_mark_styles()
+
+    def _current_image_path(self) -> Path | None:
+        idx = self._current_index()
+        if 0 <= idx < len(self._images):
+            return self._images[idx]
+        return None
+
+    def _set_current_preprocess_decision(self, action: str) -> None:
+        path = self._current_image_path()
+        if path is None or action not in {"use", "skip"}:
+            return
+        self._preprocess_decisions[path] = action
+        self._mark_preprocess_dirty()
+        self._refresh_mark_styles()
+        self._refresh_preprocess_controls()
+
+    def _clear_current_preprocess_decision(self) -> None:
+        path = self._current_image_path()
+        if path is None:
+            return
+        changed = False
+        if path in self._preprocess_decisions:
+            self._preprocess_decisions.pop(path, None)
+            changed = True
+        if changed:
+            self._mark_preprocess_dirty()
+        self._refresh_mark_styles()
+        self._refresh_preprocess_controls()
+
+    def _preprocess_decision_text(self, path: Path | None) -> str:
+        if path is None:
+            return t("dataset_preprocess_decision_none")
+        action = self._preprocess_decisions.get(path)
+        crop = path in self._crop_bounds
+        if action == "skip" and crop:
+            return t("dataset_preprocess_decision_skip_crop")
+        if action == "skip":
+            return t("dataset_preprocess_decision_skip")
+        if action == "use" and crop:
+            return t("dataset_preprocess_decision_use_crop")
+        if crop:
+            return t("dataset_preprocess_decision_crop")
+        if action == "use":
+            return t("dataset_preprocess_decision_use")
+        return t("dataset_preprocess_decision_none")
+
+    def _refresh_preprocess_controls(self) -> None:
+        path = self._current_image_path()
+        enabled = path is not None
+        self.preprocess_use_btn.setEnabled(enabled)
+        self.preprocess_skip_btn.setEnabled(enabled)
+        self.preprocess_clear_btn.setEnabled(
+            enabled and path in self._preprocess_decisions
+        )
+        self.preprocess_save_btn.setEnabled(self._current_dir is not None)
+        self.crop_margin_apply_btn.setEnabled(enabled)
+        self.crop_clear_btn.setEnabled(enabled and path in self._crop_bounds)
+        self.preprocess_decision_label.setText(self._preprocess_decision_text(path))
+
     def _toggle_mark_current(self) -> None:
         """Toggle the deletion mark on the currently selected image."""
         idx = self._current_index()
@@ -1484,15 +1875,22 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._refresh_delete_button()
 
     def _refresh_mark_styles(self) -> None:
-        """Repaint tree leaves red iff marked for deletion.
+        """Repaint tree leaves by pending source-delete/preprocess state.
 
         Unmarked items clear the ForegroundRole entirely (rather than setting a
         default QBrush, which paints black — invisible on the dark theme) so
         they fall back to the palette text color."""
         for leaf, idx in self._tree_item_to_index.items():
-            marked = idx < len(self._images) and self._images[idx] in self._marked
-            if marked:
-                leaf.setForeground(0, _DELETE_MARK_COLOR)
+            path = self._images[idx] if idx < len(self._images) else None
+            color = None
+            if path in self._marked:
+                color = _DELETE_MARK_COLOR
+            elif self._preprocess_decisions.get(path) == "skip":
+                color = _SKIP_MARK_COLOR
+            elif path in self._crop_bounds:
+                color = _CROP_MARK_COLOR
+            if color is not None:
+                leaf.setForeground(0, color)
             else:
                 leaf.setData(0, Qt.ForegroundRole, None)
 
@@ -1606,9 +2004,13 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         return 0
 
     def _deletion_files(self, image: Path) -> list[Path]:
-        """Image + its caption sidecar + caption history (all trashed together)."""
+        """Image + caption/metadata sidecars + caption history."""
         cap = image.with_suffix(".txt")
-        return [image, cap, _history_path(cap)]
+        paths = linked_paths(image)
+        history = _history_path(cap)
+        if history.exists():
+            paths.append(history)
+        return paths
 
     def _set_image_none(self) -> None:
         """Clear the preview pane (used after deleting the last image)."""
@@ -1617,6 +2019,9 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._overlay_pm = None
         self.overlay_cb.setEnabled(False)
         self.img.clear()
+        self._refresh_image_meta(None)
+        self._refresh_crop_controls(None)
+        self._refresh_preprocess_controls()
 
     def _set_caption_text(self, text: str) -> None:
         self._suspend_dirty = True
