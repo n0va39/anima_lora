@@ -141,6 +141,20 @@ STRINGS: dict[str, str] = {
     "preprocess_status_no_resized": "リサイズ済み画像がありません。",
     "preprocess_open_dataset_dir": "cacheフォルダを開く",
     "preprocess_open_dataset_dir_tooltip": "post_image_dataset/ フォルダ（リサイズ済み画像 + キャッシュ）をファイルマネージャーで開きます。",
+    "preprocess_clear_scope_cache": "現在scopeのキャッシュ削除",
+    "preprocess_clear_scope_cache_tooltip": "現在の path_scope に対応するリサイズ画像と LoRA キャッシュフォルダーを削除します。",
+    "preprocess_clear_scope_cache_all_scope": "scopeなし / 全体",
+    "preprocess_clear_scope_cache_empty": "削除するリサイズ画像または LoRA キャッシュファイルがありません。",
+    "preprocess_clear_scope_cache_outside_root": "プロジェクトフォルダー外のパスは GUI から削除しません:\n{path}",
+    "preprocess_clear_scope_cache_confirm": (
+        "現在の scope の前処理ファイルを削除しますか?\n\n"
+        "scope: {scope}\n"
+        "resize: {resized}\n  {resized_count} ファイル\n"
+        "lora: {lora}\n  {lora_count} ファイル\n\n"
+        "削除後は前処理を再実行して再生成してください。"
+    ),
+    "preprocess_clear_scope_cache_done": "前処理ファイル {count} 件を削除しました。",
+    "preprocess_invalid_path_scope": "path_scope の値が不正です: {value}",
     "preprocess_log_placeholder": "前処理の出力がここに表示されます...",
     "preprocess_save_settings": "保存",
     "preprocess_save_settings_tip": "設定を選択中の GUI method プロファイルに保存します。マスキング実行時は現在のプロファイルのマスク設定がジョブに渡されます。",

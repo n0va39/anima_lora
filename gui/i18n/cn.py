@@ -134,6 +134,20 @@ STRINGS: dict[str, str] = {
     "preprocess_status_no_resized": "尚无已调整大小的图像。",
     "preprocess_open_dataset_dir": "打开cache文件夹",
     "preprocess_open_dataset_dir_tooltip": "在文件管理器中打开 post_image_dataset/ 文件夹（已调整大小的图像 + 缓存）。",
+    "preprocess_clear_scope_cache": "删除当前 scope 缓存",
+    "preprocess_clear_scope_cache_tooltip": "删除当前 path_scope 对应的已调整大小图像和 LoRA 缓存文件夹。",
+    "preprocess_clear_scope_cache_all_scope": "无 scope / 全部",
+    "preprocess_clear_scope_cache_empty": "没有可删除的已调整大小图像或 LoRA 缓存文件。",
+    "preprocess_clear_scope_cache_outside_root": "GUI 不会删除项目文件夹外的路径:\n{path}",
+    "preprocess_clear_scope_cache_confirm": (
+        "删除当前 scope 的预处理文件？\n\n"
+        "scope: {scope}\n"
+        "resize: {resized}\n  {resized_count} 个文件\n"
+        "lora: {lora}\n  {lora_count} 个文件\n\n"
+        "删除后需要重新运行预处理来重新生成。"
+    ),
+    "preprocess_clear_scope_cache_done": "已删除 {count} 个预处理文件。",
+    "preprocess_invalid_path_scope": "path_scope 值无效: {value}",
     "preprocess_log_placeholder": "预处理输出将显示在此处……",
     "preprocess_save_settings": "保存",
     "preprocess_save_settings_tip": "将这些设置保存到所选 GUI method 配置。运行遮罩时，当前配置的遮罩设置会随任务一起提交。",

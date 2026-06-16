@@ -141,6 +141,20 @@ STRINGS: dict[str, str] = {
     "preprocess_status_no_resized": "No resized images yet.",
     "preprocess_open_dataset_dir": "Open cache folder",
     "preprocess_open_dataset_dir_tooltip": "Open the post_image_dataset/ folder (resized images + caches) in your file manager.",
+    "preprocess_clear_scope_cache": "Delete current-scope cache",
+    "preprocess_clear_scope_cache_tooltip": "Delete resized images and LoRA cache folders for the current path_scope.",
+    "preprocess_clear_scope_cache_all_scope": "no scope / all",
+    "preprocess_clear_scope_cache_empty": "No resized image or LoRA cache files to delete.",
+    "preprocess_clear_scope_cache_outside_root": "The GUI will not delete paths outside the project folder:\n{path}",
+    "preprocess_clear_scope_cache_confirm": (
+        "Delete preprocess files for the current scope?\n\n"
+        "scope: {scope}\n"
+        "resize: {resized}\n  {resized_count} files\n"
+        "lora: {lora}\n  {lora_count} files\n\n"
+        "Run preprocessing again afterward to regenerate them."
+    ),
+    "preprocess_clear_scope_cache_done": "Deleted {count} preprocess files.",
+    "preprocess_invalid_path_scope": "Invalid path_scope value: {value}",
     "preprocess_log_placeholder": "Preprocessing output will appear here...",
     "preprocess_save_settings": "Save",
     "preprocess_save_settings_tip": "Persist these settings to the selected GUI method profile. Mask runs receive the current profile's mask settings with the job.",

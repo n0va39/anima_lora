@@ -136,6 +136,20 @@ STRINGS: dict[str, str] = {
     "preprocess_status_no_resized": "리사이즈된 이미지가 없습니다.",
     "preprocess_open_dataset_dir": "캐시 폴더 열기",
     "preprocess_open_dataset_dir_tooltip": "post_image_dataset/ 폴더(리사이즈된 이미지 + 캐시)를 파일 탐색기에서 엽니다.",
+    "preprocess_clear_scope_cache": "현재 scope 캐시 삭제",
+    "preprocess_clear_scope_cache_tooltip": "현재 path_scope가 적용된 리사이즈 이미지와 LoRA 캐시 폴더를 삭제합니다.",
+    "preprocess_clear_scope_cache_all_scope": "전체 scope 없음",
+    "preprocess_clear_scope_cache_empty": "삭제할 리사이즈 이미지 또는 LoRA 캐시 파일이 없습니다.",
+    "preprocess_clear_scope_cache_outside_root": "프로젝트 폴더 밖의 경로는 GUI에서 삭제하지 않습니다:\n{path}",
+    "preprocess_clear_scope_cache_confirm": (
+        "현재 scope의 전처리 파일을 삭제합니다.\n\n"
+        "scope: {scope}\n"
+        "resize: {resized}\n  파일 {resized_count}개\n"
+        "lora: {lora}\n  파일 {lora_count}개\n\n"
+        "삭제 후 전처리를 다시 실행해 재생성해야 합니다."
+    ),
+    "preprocess_clear_scope_cache_done": "전처리 파일 {count}개를 삭제했습니다.",
+    "preprocess_invalid_path_scope": "path_scope 값이 올바르지 않습니다: {value}",
     "preprocess_log_placeholder": "전처리 출력이 여기에 표시됩니다...",
     "preprocess_save_settings": "저장",
     "preprocess_save_settings_tip": "이 설정들을 선택한 GUI method 프로필에 저장합니다. 마스킹 실행 시에는 현재 프로필의 마스크 설정이 작업에 함께 전달됩니다.",
