@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +14,7 @@ from library.datasets.buckets import (
     choose_edge,
 )
 
-SIDECAR_EXTENSIONS = (".txt", ".caption", ".json")
+SIDECAR_EXTENSIONS = (".txt", ".caption", ".json", ".txt.history.jsonl")
 
 
 def linked_paths(image_path: Path) -> list[Path]:
@@ -25,6 +26,44 @@ def linked_paths(image_path: Path) -> list[Path]:
         if sidecar.exists():
             paths.append(sidecar)
     return paths
+
+
+def move_linked_files(
+    image_path: Path,
+    *,
+    source_root: Path,
+    target_root: Path,
+) -> list[Path]:
+    """Move an image and sidecars to ``target_root`` preserving layout."""
+
+    moved: list[Path] = []
+    for source in linked_paths(image_path):
+        if not source.exists():
+            continue
+        try:
+            rel = source.relative_to(source_root)
+        except ValueError:
+            rel = Path(source.name)
+        target = _unique_path(target_root / rel)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(target))
+        moved.append(target)
+    return moved
+
+
+def _unique_path(path: Path) -> Path:
+    """Return a non-existing sibling path without overwriting prior moves."""
+
+    if not path.exists():
+        return path
+    stem = path.stem
+    suffix = path.suffix
+    parent = path.parent
+    for index in range(1, 10_000):
+        candidate = parent / f"{stem}_{index}{suffix}"
+        if not candidate.exists():
+            return candidate
+    raise FileExistsError(f"could not find a free target path for {path}")
 
 
 def rel_key(path: Path, root: Path) -> str:

@@ -24,6 +24,31 @@ def _write_image(path: Path, size: tuple[int, int]) -> None:
     Image.fromarray(arr).save(path)
 
 
+def test_move_linked_files_preserves_layout_and_sidecars(tmp_path: Path) -> None:
+    from library.datasets.curation_actions import move_linked_files
+
+    source = tmp_path / "image_dataset"
+    target = tmp_path / "post_image_dataset" / "moved"
+    image = source / "charA" / "cover.png"
+    _write_image(image, (8, 8))
+    for suffix in (".txt", ".caption", ".json", ".txt.history.jsonl"):
+        image.with_suffix(suffix).write_text(suffix, encoding="utf-8")
+
+    moved = move_linked_files(image, source_root=source, target_root=target)
+
+    expected = [
+        target / "charA" / "cover.png",
+        target / "charA" / "cover.txt",
+        target / "charA" / "cover.caption",
+        target / "charA" / "cover.json",
+        target / "charA" / "cover.txt.history.jsonl",
+    ]
+    assert moved == expected
+    assert all(path.exists() for path in expected)
+    assert not image.exists()
+    assert not image.with_suffix(".txt").exists()
+
+
 def test_walk_images_flat(tmp_path: Path) -> None:
     from library.preprocess import walk_images
 

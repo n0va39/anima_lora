@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import shutil
 import sys
 from datetime import datetime
 from html import escape
@@ -78,8 +79,8 @@ from gui.theme import tok
 from library.datasets.curation_actions import (
     center_crop_rect_for_resize_bucket_within,
     inset_crop_rect_by_percent,
-    linked_paths,
     load_curation_decisions,
+    move_linked_files,
     rel_key,
     save_curation_decisions,
 )
@@ -102,9 +103,10 @@ _AUTOTAG_GPU_WATCH_MS = 700
 _MASK_OVERLAY_COLOR_OPAQUE = QColor(255, 60, 60, 255)
 _MASK_OVERLAY_OPACITY = 0.55
 
-_DELETE_MARK_COLOR = QColor("#e74c3c")
+# Foreground tint for GUI preprocess decisions and images marked for moving.
 _SKIP_MARK_COLOR = QColor("#f39c12")
 _CROP_MARK_COLOR = QColor("#2ecc71")
+_MOVE_MARK_COLOR = QColor("#3498db")
 
 
 def _format_file_size(size: int) -> str:
@@ -593,8 +595,9 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         # Similarity-group manifest (make curate-group). Stem-keyed so it works
         # whether this tab views image_dataset/ or post_image_dataset/resized/.
         self._groups: list[dict] = []
-        # Images marked for deletion. Keyed by full path so a mark survives
-        # filter/sort/view rebuilds; cleared when the dir changes.
+        # Images marked for moving (Delete key toggles the current one; the move
+        # button moves the whole set to post_image_dataset/moved). Keyed by full
+        # path so a mark survives filter/sort/view rebuilds; cleared on dir change.
         self._marked: set[Path] = set()
         # GUI curation decisions consumed by the preprocess resize step. These
         # never move/edit source files; they only write a JSON sidecar that
@@ -713,11 +716,13 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self.preprocess_save_btn.setToolTip(t("dataset_preprocess_save_tooltip"))
         self.preprocess_save_btn.clicked.connect(self._save_preprocess_decisions)
         img_head.addWidget(self.preprocess_save_btn)
+        # Move button: moves the images marked by the Delete key into
+        # post_image_dataset/moved/. This replaces the old trash-delete action.
         self.delete_btn = QPushButton(t("dataset_delete"))
         self.delete_btn.setToolTip(t("dataset_delete_tooltip"))
         self.delete_btn.setStyleSheet(
-            "QPushButton{background:#c0392b;color:white;font-weight:bold;"
-            "padding:4px 16px;}QPushButton:disabled{background:#5a3a37;color:#aaa;}"
+            "QPushButton{background:#2980b9;color:white;font-weight:bold;"
+            "padding:4px 16px;}QPushButton:disabled{background:#2a4763;color:#aaa;}"
         )
         self.delete_btn.clicked.connect(self._delete_marked)
         img_head.addWidget(self.delete_btn)
@@ -768,6 +773,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self.img = ScaledImageLabel()
         self.img.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.img.setMinimumSize(400, 400)
+        self.img.cropRectChanged.connect(self._on_crop_bounds_changed)
         rl.addWidget(self.img, 1)
 
         self.image_meta = QLabel(t("dataset_image_meta_empty"))
@@ -840,8 +846,9 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         QShortcut(QKeySequence("Right"), self, lambda: self._nav(1))
         QShortcut(QKeySequence("Left"), self, lambda: self._nav(-1))
         QShortcut(QKeySequence.Save, self, self._save)
-        # Delete/Esc are scoped to the tree (WidgetShortcut) so they don't
-        # hijack the caption editor on focus.
+        # Delete toggles the move mark on the current image; Esc un-marks it.
+        # Both act per-current-image and are scoped to the tree (WidgetShortcut)
+        # so they don't hijack the caption editor on focus.
         _del = QShortcut(QKeySequence.Delete, self.tree, self._toggle_mark_current)
         _del.setContext(Qt.WidgetShortcut)
         _esc = QShortcut(QKeySequence(Qt.Key_Escape), self.tree, self._unmark_current)
@@ -1754,7 +1761,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             return
         crop_bounds = self._preview_crop_bounds_for_path(path)
         crop_rect = self._preview_crop_rect_for_path(path)
-        self.img.set_crop_rect(crop_bounds, final_rect=crop_rect)
+        self.img.set_crop_rect(crop_bounds, final_rect=crop_rect, editable=True)
         if crop_rect is None:
             self.crop_label.setText("")
             return
@@ -1792,6 +1799,15 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._crop_preview_enabled = True
         self._store_crop_bounds(path, rect)
         self._refresh_crop_controls(path)
+        self._refresh_mark_styles()
+
+    def _on_crop_bounds_changed(self, rect: tuple[int, int, int, int]) -> None:
+        path = self._current_image_path()
+        if path is None:
+            return
+        self._store_crop_bounds(path, rect)
+        self._refresh_crop_overlay(path)
+        self._refresh_preprocess_controls()
         self._refresh_mark_styles()
 
     def _clear_current_crop(self) -> None:
@@ -1884,7 +1900,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             path = self._images[idx] if idx < len(self._images) else None
             color = None
             if path in self._marked:
-                color = _DELETE_MARK_COLOR
+                color = _MOVE_MARK_COLOR
             elif self._preprocess_decisions.get(path) == "skip":
                 color = _SKIP_MARK_COLOR
             elif path in self._crop_bounds:
@@ -1921,7 +1937,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self.cancel_mark_btn.setEnabled(n > 0)
 
     def _delete_marked(self) -> None:
-        """Move every marked image (+ its caption sidecars) to the OS trash."""
+        """Move every marked image (+ sidecars) under post_image_dataset/moved."""
         targets = sorted(self._marked)
         if not targets:
             return
@@ -1945,15 +1961,16 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         anchor_row = self._current_index()
         targets_set = set(targets)
 
-        from send2trash import send2trash  # lazy: keeps GUI startup light
-
+        target_root = self._moved_images_dir()
         errors: list[str] = []
         for p in targets:
             try:
-                for f in self._deletion_files(p):
-                    if f.exists():
-                        send2trash(str(f))
-            except OSError as e:
+                move_linked_files(
+                    p,
+                    source_root=self._current_dir or p.parent,
+                    target_root=target_root,
+                )
+            except (OSError, shutil.Error) as e:
                 errors.append(f"{p.name}: {e}")
         self._marked.clear()
         self._refresh_delete_button()
@@ -2003,14 +2020,8 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
                     return new_row[old_images[j].stem]
         return 0
 
-    def _deletion_files(self, image: Path) -> list[Path]:
-        """Image + caption/metadata sidecars + caption history."""
-        cap = image.with_suffix(".txt")
-        paths = linked_paths(image)
-        history = _history_path(cap)
-        if history.exists():
-            paths.append(history)
-        return paths
+    def _moved_images_dir(self) -> Path:
+        return ROOT / "post_image_dataset" / "moved"
 
     def _set_image_none(self) -> None:
         """Clear the preview pane (used after deleting the last image)."""
