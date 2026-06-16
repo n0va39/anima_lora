@@ -2156,6 +2156,45 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         return True
 
     def _nav(self, d: int):
-        r = self._current_index() + d
-        if 0 <= r < len(self._images):
-            self._select_tree_index(r)
+        leaves = self._visible_tree_leaves()
+        if not leaves:
+            return
+        current = self.tree.currentItem()
+        try:
+            pos = leaves.index(current) if current is not None else -1
+        except ValueError:
+            idx = self._current_index()
+            pos = next(
+                (
+                    i
+                    for i, item in enumerate(leaves)
+                    if self._tree_item_to_index[item] == idx
+                ),
+                -1,
+            )
+        new_pos = pos + d
+        if 0 <= new_pos < len(leaves):
+            self.tree.setCurrentItem(leaves[new_pos])
+
+    def _visible_tree_leaves(self) -> list[QTreeWidgetItem]:
+        """Return image leaves in the same order shown by the left tree."""
+
+        leaves: list[QTreeWidgetItem] = []
+
+        def walk(parent: QTreeWidgetItem) -> None:
+            if parent in self._tree_item_to_index and not parent.isHidden():
+                leaves.append(parent)
+                return
+            if parent is not self.tree.invisibleRootItem() and not parent.isExpanded():
+                return
+            for i in range(parent.childCount()):
+                child = parent.child(i)
+                if not child.isHidden():
+                    walk(child)
+
+        root = self.tree.invisibleRootItem()
+        for i in range(root.childCount()):
+            item = root.child(i)
+            if not item.isHidden():
+                walk(item)
+        return leaves
