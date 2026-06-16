@@ -14,7 +14,6 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 from PIL import Image
-from PIL import ImageOps
 from PIL.PngImagePlugin import PngInfo
 
 from library.datasets.buckets import (
@@ -23,7 +22,6 @@ from library.datasets.buckets import (
     buckets_for_edges,
     choose_edge,
 )
-from library.datasets.curation_actions import clamp_crop_rect, crop_rect_from_decision
 from library.preprocess._dataset import PreprocessStats, walk_images
 from library.preprocess._progress import ProgressFn
 
@@ -69,7 +67,6 @@ def process_image(
     copy_captions: bool = True,
     rel_dir: str = "",
     overwrite: bool = False,
-    crop_rect: tuple[int, int, int, int] | None = None,
 ) -> tuple[str, tuple[int, int], bool]:
     """Worker — receives bucket params (not a BucketManager) to stay picklable.
 
@@ -95,16 +92,7 @@ def process_image(
 
     src_img = Image.open(image_path)
     save_kwargs = _collect_metadata(src_img)
-    img = ImageOps.exif_transpose(src_img)
-    if crop_rect is not None:
-        crop_rect = clamp_crop_rect(
-            crop_rect,
-            image_width=img.width,
-            image_height=img.height,
-        )
-        x, y, width, height = crop_rect
-        img = img.crop((x, y, x + width, y + height))
-    w, h = img.size
+    w, h = src_img.size
 
     if use_constant:
         # Default to the canonical 1024 tier (not the full multi-tier catalog):
@@ -122,7 +110,7 @@ def process_image(
     target_dir = out_dir / rel_dir if rel_dir else out_dir
     out_path = target_dir / f"{image_path.stem}.png"
 
-    if crop_rect is None and not overwrite and out_path.exists():
+    if not overwrite and out_path.exists():
         try:
             with Image.open(out_path) as ex:
                 if ex.size == (bw, bh):
@@ -130,7 +118,7 @@ def process_image(
         except Exception:
             pass
 
-    img = img.convert("RGB")
+    img = src_img.convert("RGB")
 
     ar_img = w / h
     ar_bucket = bw / bh
@@ -213,7 +201,6 @@ def resize_to_buckets(
         except ValueError:
             return p.name
 
-    crop_by_path: dict[Path, tuple[int, int, int, int]] = {}
     if decisions:
         kept: list[Path] = []
         skipped_by_decision: list[Path] = []
@@ -222,9 +209,6 @@ def resize_to_buckets(
             if decision.get("action") in {"skip", "move"}:
                 skipped_by_decision.append(p)
                 continue
-            crop_rect = crop_rect_from_decision(decision.get("crop_bounds"))
-            if crop_rect is not None:
-                crop_by_path[p] = crop_rect
             kept.append(p)
         if skipped_by_decision and verbose:
             print(
@@ -294,7 +278,6 @@ def resize_to_buckets(
                 copy_captions,
                 _rel_for(img_path),
                 overwrite,
-                crop_by_path.get(img_path),
             ): img_path
             for img_path in image_files
         }
