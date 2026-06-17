@@ -103,7 +103,9 @@ def _target_res_buckets() -> dict[int, tuple[tuple[int, int], ...]]:
 
     return {
         edge: tuple(
-            sorted(CONSTANT_TOKEN_BUCKETS_BY_EDGE[edge], key=lambda size: size[0] / size[1])
+            sorted(
+                CONSTANT_TOKEN_BUCKETS_BY_EDGE[edge], key=lambda size: size[0] / size[1]
+            )
         )
         for edge in sorted(CONSTANT_TOKEN_BUCKETS_BY_EDGE)
     }
@@ -184,7 +186,9 @@ class _TargetResWidget(QWidget):
             popup.addAction(action)
             toggle.setMenu(popup)
             if edge in danger:
-                toggle.setStyleSheet("QToolButton { color: #d9822b; font-weight: bold; }")
+                toggle.setStyleSheet(
+                    "QToolButton { color: #d9822b; font-weight: bold; }"
+                )
                 toggle.setToolTip(
                     t(
                         "target_res_danger_tooltip",
@@ -225,7 +229,9 @@ class _TargetResWidget(QWidget):
                 if part.strip()
             }
         elif values:
-            selected = {str(value).strip().lower().replace("×", "x") for value in values}
+            selected = {
+                str(value).strip().lower().replace("×", "x") for value in values
+            }
         self._explicit_bucket_selection = bool(selected)
         for (width, height), cb in self._bucket_boxes.items():
             cb.blockSignals(True)
@@ -996,6 +1002,8 @@ class DirtyTrackingMixin:
             w.currentTextChanged.connect(self._mark_dirty)
         elif isinstance(w, QCheckBox):
             w.toggled.connect(self._mark_dirty)
+        elif isinstance(w, QDoubleSpinBox):
+            w.valueChanged.connect(self._mark_dirty)
         elif isinstance(w, QSpinBox):
             w.valueChanged.connect(self._mark_dirty)
         elif isinstance(w, QLineEdit):

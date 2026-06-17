@@ -694,6 +694,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._sort_desc: bool = False
         self._group_sort_mode: str = "name"
         self._group_sort_desc: bool = False
+        self._image_size_cache: dict[Path, tuple[int, int]] = {}
         # Group-first: float every similarity group to the top, flattened across
         # folders. Off = per-folder tree. See _rebuild_tree_group_first.
         self._group_first: bool = False
@@ -777,9 +778,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self.group_sort_combo.addItem(t("dataset_group_sort_name_desc"), "name_desc")
         self.group_sort_combo.addItem(t("dataset_group_sort_size"), "size")
         self.group_sort_combo.addItem(t("dataset_group_sort_size_desc"), "size_desc")
-        self.group_sort_combo.addItem(
-            t("dataset_group_sort_resolution"), "resolution"
-        )
+        self.group_sort_combo.addItem(t("dataset_group_sort_resolution"), "resolution")
         self.group_sort_combo.addItem(
             t("dataset_group_sort_resolution_desc"), "resolution_desc"
         )
@@ -1278,11 +1277,13 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             # Deletion marks are path-scoped to one dir; drop them on a switch.
             self._marked.clear()
             self._preprocess_decisions.clear()
+            self._image_size_cache.clear()
             self._refresh_delete_button()
             self._refresh_preprocess_controls()
         self._current_dir = d
         self._load_preprocess_decisions()
         self._load_groups()  # reload the group manifest for the tree folds
+        self._image_size_cache.clear()
         self._all_images = _imgs(d)
         had_match = self._apply_filter_and_sort(prev_stem=prev_stem)
         if not self._images:
@@ -1328,7 +1329,9 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             return (width * height, width, height, label, idx)
         return (label, idx)
 
-    def _sort_group_members(self, members: list[tuple[int, Path]]) -> list[tuple[int, Path]]:
+    def _sort_group_members(
+        self, members: list[tuple[int, Path]]
+    ) -> list[tuple[int, Path]]:
         return sorted(members, key=self._group_sort_key, reverse=self._group_sort_desc)
 
     def _apply_filter_and_sort(self, *, prev_stem: str | None = None) -> bool:
@@ -1785,7 +1788,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             if self._overlay_pm is None:
                 self._overlay_pm = _compose_mask_overlay(
                     self._source_pm, self._mask_path
-            )
+                )
             pm = self._overlay_pm
         if self.resize_preview_cb.isChecked():
             target_res, crop_anchor, bucket_resos, crop_margins = (
@@ -1800,7 +1803,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             )
         self.img.set_source(pm)
 
-    def _on_overlay_toggled(self, _checked: bool) -> None:
+    def _on_overlay_toggled(self, _value=None) -> None:
         self._refresh_resize_preview_buckets()
         self._apply_image_view()
         self._refresh_image_meta(self._current_image_path())
@@ -1901,8 +1904,13 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         return None
 
     def _image_size(self, path: Path) -> tuple[int, int]:
+        cached = self._image_size_cache.get(path)
+        if cached is not None:
+            return cached
         size = QImageReader(str(path)).size()
-        return (max(0, size.width()), max(0, size.height()))
+        result = (max(0, size.width()), max(0, size.height()))
+        self._image_size_cache[path] = result
+        return result
 
     def _resize_preview_meta(self, width: int, height: int) -> str:
         if not self.resize_preview_cb.isChecked():
@@ -1922,7 +1930,8 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         except (KeyError, TypeError, ValueError):
             return ""
         bucket_w, bucket_h = preview.bucket_size
-        return t("dataset_image_meta_resize").format(
+        return t(
+            "dataset_image_meta_resize",
             width=bucket_w,
             height=bucket_h,
             edge=preview.target_edge,
@@ -2152,6 +2161,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._disk_text = ""
         self._set_caption_text("")
         if self._current_dir is not None:
+            self._image_size_cache.clear()
             self._all_images = _imgs(self._current_dir)
         self._apply_filter_and_sort()
         if self._images:

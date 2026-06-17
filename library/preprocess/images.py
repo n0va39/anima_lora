@@ -254,13 +254,13 @@ def resize_to_buckets(
         (resolution, resolution),
         min_bucket_reso,
         max_bucket_reso,
-    bucket_reso_steps,
-    constant_token_buckets,
-    target_res,
-    crop_anchor,
-    parse_bucket_resos(bucket_resos),
-    normalize_crop_margins(crop_margins),
-)
+        bucket_reso_steps,
+        constant_token_buckets,
+        target_res,
+        crop_anchor,
+        parse_bucket_resos(bucket_resos),
+        normalize_crop_margins(crop_margins),
+    )
 
     # walk_images enforces per-subfolder stem uniqueness (collisions would collide the resized output).
     image_files = walk_images(src, recursive=recursive, pattern=path_pattern)
@@ -315,7 +315,7 @@ def resize_to_buckets(
             )
             for p, w, h in skipped:
                 print(f"  {p.name}  {w}x{h}  ({w * h / 1e6:.3f}MP)")
-        stats.skipped = len(skipped)
+        stats.skipped += len(skipped)
         image_files = kept
 
     if verbose:
