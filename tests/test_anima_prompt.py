@@ -85,6 +85,32 @@ def test_artist_validation_keeps_unknown_trigger_out_of_artist_slot() -> None:
     assert result.text == "1girl, gotoh hitori, @no-artist, long hair, @special trigger"
 
 
+def test_no_artist_placeholder_sorts_in_artist_slot_with_or_without_marker() -> None:
+    db = AnimaDexDB()
+    db.characters.add("hatsune miku")
+    db.copyrights.add("vocaloid")
+    db.core_tags.add("1girl")
+    kb = PromptKnowledgeBase(animadex=db)
+
+    for placeholder in ("no-artist", "@no-artist"):
+        result = correct_prompt(
+            f"long hair, vocaloid, {placeholder}, hatsune miku, 1girl",
+            knowledge_base=kb,
+            validate_artist_tags=True,
+            insert_no_artist=True,
+        )
+
+        assert result.text == "1girl, hatsune miku, vocaloid, @no-artist, long hair"
+        assert result.unknown_tags == ("long hair",)
+        assert [token.section.value for token in result.tokens] == [
+            "count",
+            "character",
+            "copyright",
+            "artist",
+            "unknown",
+        ]
+
+
 def test_artist_override_can_promote_manual_trigger_word() -> None:
     result = correct_prompt(
         "long hair, @special_trigger, 1girl",

@@ -32,9 +32,11 @@ def _classify_with_artist_options(
 ):
     key = lookup_key(normalized)
     is_no_artist = key == lookup_key(NO_ARTIST_TAG)
+    if is_no_artist:
+        return classify_tag(NO_ARTIST_TAG, info)
     if key in artist_exclusions:
         return classify_tag(normalized.lstrip("@"), None)
-    if key in artist_overrides or is_no_artist:
+    if key in artist_overrides:
         return classify_tag(f"@{key}", info)
     if normalized.strip().startswith("@"):
         if not validate_artist_tags:
@@ -82,6 +84,7 @@ def inspect_prompt(
         normalized = normalize_tag(raw)
         key = lookup_key(normalized)
         info = kb.lookup(normalized)
+        manual_known = key == lookup_key(NO_ARTIST_TAG) or key in override_keys
         section = _classify_with_artist_options(
             normalized,
             info=info,
@@ -95,7 +98,7 @@ def inspect_prompt(
             duplicates.append(normalized)
         else:
             seen.add(dedupe_key)
-        if info is None:
+        if info is None and not manual_known:
             unknown.append(normalized)
         tokens.append(
             TagToken(
@@ -103,7 +106,7 @@ def inspect_prompt(
                 normalized=normalized,
                 lookup_key=key,
                 text=_render_token(normalized, section.value),
-                known=info is not None,
+                known=info is not None or manual_known,
                 section=section,
                 category_path=info.category_path if info else (),
                 source=info.source if info else None,
