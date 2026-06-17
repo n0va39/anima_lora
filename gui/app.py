@@ -205,6 +205,8 @@ class SettingsDialog(QDialog):
 
         prefs_group = QGroupBox(t("settings_prefs_header"))
         prefs_lay = QVBoxLayout(prefs_group)
+        caption_group = QGroupBox(t("settings_caption_header"))
+        caption_lay = QVBoxLayout(caption_group)
 
         # Autotagger confidence floor (applied on top of the model's per-tag F1
         # thresholds; see AnimaTagger.predict_caption min_confidence).
@@ -226,7 +228,77 @@ class SettingsDialog(QDialog):
         self.conf_spin.setFixedWidth(125)
         conf_row.addWidget(self.conf_spin)
         conf_row.addStretch()
-        prefs_lay.addLayout(conf_row)
+        caption_lay.addLayout(conf_row)
+
+        self.caption_validate_artist_check = QCheckBox(
+            t("settings_caption_validate_artist_tags")
+        )
+        self.caption_validate_artist_check.setToolTip(
+            t("settings_caption_validate_artist_tags_tooltip")
+        )
+        self.caption_validate_artist_check.setChecked(
+            bool(get_setting("caption_validate_artist_tags", False))
+        )
+        self.caption_validate_artist_check.toggled.connect(
+            lambda checked: set_setting("caption_validate_artist_tags", bool(checked))
+        )
+        caption_lay.addWidget(self.caption_validate_artist_check)
+
+        self.caption_insert_no_artist_check = QCheckBox(
+            t("settings_caption_insert_no_artist")
+        )
+        self.caption_insert_no_artist_check.setToolTip(
+            t("settings_caption_insert_no_artist_tooltip")
+        )
+        self.caption_insert_no_artist_check.setChecked(
+            bool(get_setting("caption_insert_no_artist", False))
+        )
+        self.caption_insert_no_artist_check.toggled.connect(
+            lambda checked: set_setting("caption_insert_no_artist", bool(checked))
+        )
+        caption_lay.addWidget(self.caption_insert_no_artist_check)
+
+        overrides_label = QLabel(t("settings_caption_artist_overrides"))
+        overrides_label.setToolTip(t("settings_caption_artist_overrides_tooltip"))
+        caption_lay.addWidget(overrides_label)
+        self.caption_artist_overrides_edit = QPlainTextEdit(
+            str(get_setting("caption_artist_overrides", ""))
+        )
+        self.caption_artist_overrides_edit.setPlaceholderText(
+            t("settings_caption_artist_overrides_placeholder")
+        )
+        self.caption_artist_overrides_edit.setToolTip(
+            t("settings_caption_artist_overrides_tooltip")
+        )
+        self.caption_artist_overrides_edit.setFixedHeight(58)
+        self.caption_artist_overrides_edit.textChanged.connect(
+            lambda: set_setting(
+                "caption_artist_overrides",
+                self.caption_artist_overrides_edit.toPlainText(),
+            )
+        )
+        caption_lay.addWidget(self.caption_artist_overrides_edit)
+
+        exclusions_label = QLabel(t("settings_caption_artist_exclusions"))
+        exclusions_label.setToolTip(t("settings_caption_artist_exclusions_tooltip"))
+        caption_lay.addWidget(exclusions_label)
+        self.caption_artist_exclusions_edit = QPlainTextEdit(
+            str(get_setting("caption_artist_exclusions", ""))
+        )
+        self.caption_artist_exclusions_edit.setPlaceholderText(
+            t("settings_caption_artist_exclusions_placeholder")
+        )
+        self.caption_artist_exclusions_edit.setToolTip(
+            t("settings_caption_artist_exclusions_tooltip")
+        )
+        self.caption_artist_exclusions_edit.setFixedHeight(58)
+        self.caption_artist_exclusions_edit.textChanged.connect(
+            lambda: set_setting(
+                "caption_artist_exclusions",
+                self.caption_artist_exclusions_edit.toPlainText(),
+            )
+        )
+        caption_lay.addWidget(self.caption_artist_exclusions_edit)
 
         # Closing the dialog rebuilds the window so each tab's per-widget tokens (gui.theme.tok) repaint.
         theme_row = QHBoxLayout()
@@ -280,6 +352,7 @@ class SettingsDialog(QDialog):
         dbg_row.addWidget(self.debug_report_btn)
         prefs_lay.addLayout(dbg_row)
 
+        lay.addWidget(caption_group)
         lay.addWidget(prefs_group)
 
         mcp_group = QGroupBox(t("settings_mcp_header"))

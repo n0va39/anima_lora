@@ -428,11 +428,32 @@ STRINGS: dict[str, str] = {
     "settings_btn_tooltip": "アプリ設定 — 言語、環境設定、MCP サーバー登録",
     "settings_title": "設定",
     "settings_prefs_header": "環境設定",
+    "settings_caption_header": "キャプション / 自動タグ",
     "settings_autotag_confidence": "自動タグの信頼度:",
     "settings_autotag_confidence_tooltip": (
         "タガーのタグ別しきい値に追加で適用する確率の下限（0–1）です。"
         "高いほど確信度の高いタグだけが少数残ります。既定値 0.50。"
     ),
+    "settings_caption_validate_artist_tags": "アーティストタグを検証",
+    "settings_caption_validate_artist_tags_tooltip": (
+        "キャプション順序補正時、AnimaDex artists と下の追加登録タグだけを "
+        "@artist タグとして扱います。未登録の @trigger はアーティスト位置へ移動しません。"
+    ),
+    "settings_caption_insert_no_artist": "no-artist を挿入",
+    "settings_caption_insert_no_artist_tooltip": (
+        "アーティストタグがない、または検証で除外された場合、"
+        "アーティスト位置のプレースホルダーとして @no-artist を挿入します。"
+    ),
+    "settings_caption_artist_overrides": "追加アーティストタグ:",
+    "settings_caption_artist_overrides_tooltip": (
+        "アーティストとして扱う手動トリガーをカンマまたは改行で入力します。"
+    ),
+    "settings_caption_artist_overrides_placeholder": "special_trigger\nmanual artist",
+    "settings_caption_artist_exclusions": "アーティストタグ例外:",
+    "settings_caption_artist_exclusions_tooltip": (
+        "@ で始まってもアーティストとして扱わないトリガーをカンマまたは改行で入力します。"
+    ),
+    "settings_caption_artist_exclusions_placeholder": "no_artist_trigger\nstyle token",
     "settings_theme": "テーマ:",
     "settings_theme_tooltip": (
         "インターフェース全体のカラーテーマです。即時に反映され、設定画面を閉じると"

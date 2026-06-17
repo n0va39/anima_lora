@@ -480,11 +480,34 @@ STRINGS: dict[str, str] = {
     "settings_btn_tooltip": "Application settings — language, preferences, MCP server registration",
     "settings_title": "Settings",
     "settings_prefs_header": "Preferences",
+    "settings_caption_header": "Caption / Autotag",
     "settings_autotag_confidence": "Autotag confidence:",
     "settings_autotag_confidence_tooltip": (
         "Extra probability floor (0–1) applied on top of the tagger's per-tag "
         "thresholds. Higher = fewer, more confident tags. Default 0.50."
     ),
+    "settings_caption_validate_artist_tags": "Validate artist tags",
+    "settings_caption_validate_artist_tags_tooltip": (
+        "During caption order correction, only AnimaDex artists and the manual "
+        "artist list below are treated as @artist tags. Unregistered @triggers "
+        "do not move into the artist slot."
+    ),
+    "settings_caption_insert_no_artist": "Insert no-artist",
+    "settings_caption_insert_no_artist_tooltip": (
+        "Insert @no-artist as the artist placeholder when no artist tag exists "
+        "or all @tags are rejected by validation."
+    ),
+    "settings_caption_artist_overrides": "Additional artist tags:",
+    "settings_caption_artist_overrides_tooltip": (
+        "Comma- or newline-separated manual triggers to treat like artist tags."
+    ),
+    "settings_caption_artist_overrides_placeholder": "special_trigger\nmanual artist",
+    "settings_caption_artist_exclusions": "Artist tag exceptions:",
+    "settings_caption_artist_exclusions_tooltip": (
+        "Comma- or newline-separated triggers that must not be treated as artists, "
+        "even when they start with @."
+    ),
+    "settings_caption_artist_exclusions_placeholder": "no_artist_trigger\nstyle token",
     "settings_theme": "Theme:",
     "settings_theme_tooltip": (
         "Overall color theme for the interface. Applies immediately; the window "

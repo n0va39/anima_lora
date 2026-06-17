@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import re
 import shutil
 import sys
 from datetime import datetime
@@ -2308,6 +2309,28 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             self._caption_knowledge_base = load_knowledge_base(allow_missing=True)
         return self._caption_knowledge_base
 
+    def _caption_order_tag_setting(self, key: str) -> list[str]:
+        raw = get_setting(key, "")
+        if isinstance(raw, list):
+            parts = raw
+        else:
+            parts = re.split(r"[,\n]", str(raw))
+        return [str(part).strip() for part in parts if str(part).strip()]
+
+    def _caption_order_options(self) -> dict:
+        return {
+            "validate_artist_tags": bool(
+                get_setting("caption_validate_artist_tags", False)
+            ),
+            "insert_no_artist": bool(get_setting("caption_insert_no_artist", False)),
+            "artist_overrides": self._caption_order_tag_setting(
+                "caption_artist_overrides"
+            ),
+            "artist_exclusions": self._caption_order_tag_setting(
+                "caption_artist_exclusions"
+            ),
+        }
+
     def _apply_caption_order_correction(self) -> None:
         cp = self._current_caption_path
         if cp is None:
@@ -2323,6 +2346,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
                 old_text,
                 profile="caption",
                 knowledge_base=self._load_caption_knowledge_base(),
+                **self._caption_order_options(),
             )
         except Exception as e:
             QMessageBox.warning(
@@ -2350,6 +2374,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             text,
             profile="caption",
             knowledge_base=self._load_caption_knowledge_base(),
+            **self._caption_order_options(),
         )
         return result.text if result.changed else None
 

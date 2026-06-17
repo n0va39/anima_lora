@@ -414,11 +414,31 @@ STRINGS: dict[str, str] = {
     "settings_btn_tooltip": "应用设置 —— 语言、偏好设置、MCP 服务器注册",
     "settings_title": "设置",
     "settings_prefs_header": "偏好设置",
+    "settings_caption_header": "标注 / 自动打标",
     "settings_autotag_confidence": "自动打标置信度:",
     "settings_autotag_confidence_tooltip": (
         "在打标器各标签阈值之上额外应用的概率下限（0–1）。"
         "数值越高，保留的标签越少但越可靠。默认 0.50。"
     ),
+    "settings_caption_validate_artist_tags": "验证艺术家标签",
+    "settings_caption_validate_artist_tags_tooltip": (
+        "修正标注顺序时，只把 AnimaDex artists 和下方手动列表中的标签作为 @artist。"
+        "未注册的 @trigger 不会移动到艺术家位置。"
+    ),
+    "settings_caption_insert_no_artist": "插入 no-artist",
+    "settings_caption_insert_no_artist_tooltip": (
+        "没有艺术家标签，或所有 @ 标签都被验证排除时，在艺术家位置插入 @no-artist。"
+    ),
+    "settings_caption_artist_overrides": "追加艺术家标签:",
+    "settings_caption_artist_overrides_tooltip": (
+        "输入要当作艺术家处理的手动触发词，可用逗号或换行分隔。"
+    ),
+    "settings_caption_artist_overrides_placeholder": "special_trigger\nmanual artist",
+    "settings_caption_artist_exclusions": "艺术家标签例外:",
+    "settings_caption_artist_exclusions_tooltip": (
+        "输入即使以 @ 开头也不作为艺术家处理的触发词，可用逗号或换行分隔。"
+    ),
+    "settings_caption_artist_exclusions_placeholder": "no_artist_trigger\nstyle token",
     "settings_theme": "主题:",
     "settings_theme_tooltip": (
         "界面整体配色主题，立即生效；关闭设置窗口时会重建窗口以完全重绘。"

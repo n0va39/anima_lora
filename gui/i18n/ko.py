@@ -467,11 +467,31 @@ STRINGS: dict[str, str] = {
     "settings_btn_tooltip": "앱 설정 — 언어, 환경설정, MCP 서버 등록",
     "settings_title": "설정",
     "settings_prefs_header": "환경설정",
+    "settings_caption_header": "캡션 / 자동 태깅",
     "settings_autotag_confidence": "자동 태그 신뢰도:",
     "settings_autotag_confidence_tooltip": (
         "태거의 태그별 임계값 위에 추가로 적용되는 확률 하한(0–1)입니다. "
         "높을수록 더 확실한 태그만 적게 남습니다. 기본값 0.50."
     ),
+    "settings_caption_validate_artist_tags": "작가태그 검증",
+    "settings_caption_validate_artist_tags_tooltip": (
+        "캡션 순서 교정 시 AnimaDex artists에 등록된 태그와 아래 추가 등록 태그만 "
+        "@작가 태그로 취급합니다. 등록되지 않은 @트리거는 작가 자리로 이동하지 않습니다."
+    ),
+    "settings_caption_insert_no_artist": "no artist 삽입",
+    "settings_caption_insert_no_artist_tooltip": (
+        "작가 태그가 없거나 검증에서 제외된 경우 작가 자리표시자로 @no-artist를 삽입합니다."
+    ),
+    "settings_caption_artist_overrides": "작가태그 추가:",
+    "settings_caption_artist_overrides_tooltip": (
+        "작가처럼 취급할 수동 트리거를 쉼표 또는 줄바꿈으로 입력합니다."
+    ),
+    "settings_caption_artist_overrides_placeholder": "special_trigger\nmanual artist",
+    "settings_caption_artist_exclusions": "작가태그 예외:",
+    "settings_caption_artist_exclusions_tooltip": (
+        "@로 시작해도 작가로 취급하지 않을 트리거를 쉼표 또는 줄바꿈으로 입력합니다."
+    ),
+    "settings_caption_artist_exclusions_placeholder": "no_artist_trigger\nstyle token",
     "settings_theme": "테마:",
     "settings_theme_tooltip": (
         "인터페이스 전체 색상 테마입니다. 즉시 적용되며, 설정 창을 닫으면 "

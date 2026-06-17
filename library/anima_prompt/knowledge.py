@@ -183,6 +183,19 @@ def _candidate_paths(
     return paths
 
 
+def _explicit_or_env_paths(
+    explicit: str | os.PathLike | None,
+    env_name: str,
+) -> list[Path]:
+    paths: list[Path] = []
+    if explicit:
+        paths.append(Path(explicit))
+    env = os.environ.get(env_name)
+    if env:
+        paths.append(Path(env))
+    return paths
+
+
 def _first_file(paths: Iterable[Path]) -> Path | None:
     seen: set[Path] = set()
     for path in paths:
@@ -206,27 +219,20 @@ def load_knowledge_base(
 ) -> PromptKnowledgeBase:
     """Load local prompt knowledge from CSV/JSONL sources.
 
-    Resolution priority is explicit argument, environment variable, then a
-    workspace-local default filename. Missing data raises a clear error unless
-    ``allow_missing`` is set.
+    General Danbooru tag data is loaded only when explicitly configured by
+    argument or environment variable. AnimaDex data is auto-discovered from the
+    workspace-local models/animadex paths.
     """
 
-    index_path = _first_file(
-        _candidate_paths(tag_index, TAG_INDEX_ENV, DEFAULT_TAG_INDEX_NAME)
-    )
-    csv_path = _first_file(_candidate_paths(tag_csv, TAG_CSV_ENV, DEFAULT_TAG_CSV_NAME))
+    index_path = _first_file(_explicit_or_env_paths(tag_index, TAG_INDEX_ENV))
+    csv_path = _first_file(_explicit_or_env_paths(tag_csv, TAG_CSV_ENV))
 
     if index_path:
         general = GeneralTagDB.from_jsonl(index_path)
     elif csv_path:
         general = GeneralTagDB.from_csv(csv_path)
-    elif allow_missing:
-        general = GeneralTagDB()
     else:
-        raise KnowledgeBaseNotFound(
-            "No tag DB found. Pass --tag-csv/--tag-index or set "
-            f"{TAG_CSV_ENV}/{TAG_INDEX_ENV}."
-        )
+        general = GeneralTagDB()
 
     character_index_path = _first_file(
         _candidate_paths(
@@ -269,5 +275,17 @@ def load_knowledge_base(
         animadex = AnimaDexDB.from_csvs(
             characters_csv=char_csv_path,
             artists_csv=artist_csv_path,
+        )
+    if (
+        not allow_missing
+        and not general.tags
+        and not animadex.characters
+        and not animadex.copyrights
+        and not animadex.artists
+        and not animadex.core_tags
+    ):
+        raise KnowledgeBaseNotFound(
+            "No prompt DB found. Import AnimaDex CSVs under models/animadex or "
+            "pass explicit tag/AnimaDex paths."
         )
     return PromptKnowledgeBase(general=general, animadex=animadex)

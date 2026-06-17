@@ -11,6 +11,7 @@ from library.anima_prompt import (
     PromptKnowledgeBase,
     correct_prompt,
     inspect_prompt,
+    load_knowledge_base,
 )
 from library.anima_prompt.animadex import ANIMADEX_DEFAULT_DATA_DIR
 from library.anima_prompt.knowledge import parse_category_path
@@ -73,6 +74,63 @@ def test_unknown_and_duplicates_reported() -> None:
     assert result.duplicate_tags == ("1girl",)
 
 
+def test_artist_validation_keeps_unknown_trigger_out_of_artist_slot() -> None:
+    result = correct_prompt(
+        "long hair, @special_trigger, gotoh hitori, 1girl",
+        knowledge_base=_kb(),
+        validate_artist_tags=True,
+        insert_no_artist=True,
+    )
+
+    assert result.text == "1girl, gotoh hitori, @no-artist, long hair, @special trigger"
+
+
+def test_artist_override_can_promote_manual_trigger_word() -> None:
+    result = correct_prompt(
+        "long hair, @special_trigger, 1girl",
+        knowledge_base=_kb(),
+        validate_artist_tags=True,
+        insert_no_artist=True,
+        artist_overrides=["special trigger"],
+    )
+
+    assert result.text == "1girl, @special_trigger, long hair"
+
+
+def test_artist_exclusion_forces_known_artist_out_of_artist_slot() -> None:
+    result = correct_prompt(
+        "long hair, @artist_name, 1girl",
+        knowledge_base=_kb(),
+        validate_artist_tags=True,
+        insert_no_artist=True,
+        artist_exclusions=["artist name"],
+    )
+
+    assert result.text == "1girl, @no-artist, long hair, @artist name"
+
+
+def test_artist_validation_uses_animadex_artist_db_not_general_tag_db() -> None:
+    result = correct_prompt(
+        "long hair, @artist_name, 1girl",
+        knowledge_base=_kb(),
+        validate_artist_tags=True,
+        insert_no_artist=True,
+    )
+
+    assert result.text == "1girl, @no-artist, long hair, @artist name"
+
+    db = AnimaDexDB()
+    db.artists.add("artist name")
+    animadex_result = correct_prompt(
+        "long hair, @artist_name, 1girl",
+        knowledge_base=PromptKnowledgeBase(general=_kb().general, animadex=db),
+        validate_artist_tags=True,
+        insert_no_artist=True,
+    )
+
+    assert animadex_result.text == "1girl, @artist_name, long hair"
+
+
 def test_general_tag_db_from_csv_and_jsonl(tmp_path: Path) -> None:
     csv_path = tmp_path / "tags.csv"
     csv_path.write_text(
@@ -87,6 +145,19 @@ def test_general_tag_db_from_csv_and_jsonl(tmp_path: Path) -> None:
     db.write_jsonl(jsonl)
     loaded = GeneralTagDB.from_jsonl(jsonl)
     assert loaded.tags["gotoh hitori"].category_path == ("캐릭터",)
+
+
+def test_load_knowledge_base_does_not_auto_load_workspace_general_csv(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    csv_path = tmp_path / "KR_danbooru_tags_with_description v3_modified.csv"
+    csv_path.write_text('artist name,0,5,"[작가] artist"\n', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    kb = load_knowledge_base(allow_missing=True)
+
+    assert "artist name" not in kb.general.tags
 
 
 def test_inspect_prompt_keeps_original_order() -> None:
