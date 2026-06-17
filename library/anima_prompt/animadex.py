@@ -26,7 +26,7 @@ ANIMADEX_DEFAULT_SITE = "https://animadex.net"
 ANIMADEX_MANIFEST_PATH = "/api/export/manifest"
 ANIMADEX_EXPORT_TOKEN_HEADER = "X-Export-Token"
 ANIMADEX_IMPORT_USER_AGENT = "animadex-import/1"
-ANIMADEX_DEFAULT_DATA_DIR = Path("data") / "animadex"
+ANIMADEX_DEFAULT_DATA_DIR = Path("models") / "animadex"
 ANIMADEX_IMPORT_DIR_NAME = "import"
 ANIMADEX_INDEX_DIR_NAME = "index"
 

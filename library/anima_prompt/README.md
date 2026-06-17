@@ -68,7 +68,7 @@ Environment variables:
 
 ```powershell
 uv run python scripts/anima_prompt.py build-index --tag-csv tags.csv --output tag_index.jsonl
-uv run python scripts/anima_prompt.py build-animadex-index --characters-csv characters.csv --artists-csv artists.csv --output-dir data/animadex
+uv run python scripts/anima_prompt.py build-animadex-index --characters-csv characters.csv --artists-csv artists.csv --output-dir models/animadex/index
 uv run python scripts/anima_prompt.py animadex-save-token
 uv run python scripts/anima_prompt.py animadex-import --build-index
 uv run python scripts/anima_prompt.py check --text "long hair, 1girl" --tag-csv tags.csv
@@ -107,12 +107,12 @@ Default local paths:
 
 - Token: `%APPDATA%\anima_prompt\animadex_import_token.json` on Windows, or
   `~/.config/anima_prompt/animadex_import_token.json` on other OSes
-- CSV: `data/animadex/import/characters.csv`,
-  `data/animadex/import/artists.csv`
-- Index: `data/animadex/index/character_index.jsonl`,
-  `data/animadex/index/artist_index.jsonl`
+- CSV: `models/animadex/import/characters.csv`,
+  `models/animadex/import/artists.csv`
+- Index: `models/animadex/index/character_index.jsonl`,
+  `models/animadex/index/artist_index.jsonl`
 
-`data/animadex/` is ignored by git. Do not commit downloaded CSVs or tokens.
+`models/animadex/` is ignored by git. Do not commit downloaded CSVs or tokens.
 
 AnimaDex CSV fields used by the prompt core:
 

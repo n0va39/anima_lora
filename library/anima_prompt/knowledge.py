@@ -25,8 +25,8 @@ DEFAULT_TAG_CSV_NAME = "KR_danbooru_tags_with_description v3_modified.csv"
 DEFAULT_TAG_INDEX_NAME = "tag_index.jsonl"
 DEFAULT_CHARACTER_INDEX_NAME = "character_index.jsonl"
 DEFAULT_ARTIST_INDEX_NAME = "artist_index.jsonl"
-DEFAULT_ANIMADEX_IMPORT_DIR = Path("data") / "animadex" / "import"
-DEFAULT_ANIMADEX_INDEX_DIR = Path("data") / "animadex" / "index"
+DEFAULT_ANIMADEX_IMPORT_DIR = Path("models") / "animadex" / "import"
+DEFAULT_ANIMADEX_INDEX_DIR = Path("models") / "animadex" / "index"
 
 _CATEGORY_RE = re.compile(r"^\s*\[([^\]]+)\]")
 

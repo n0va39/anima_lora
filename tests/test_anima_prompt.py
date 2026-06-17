@@ -12,6 +12,7 @@ from library.anima_prompt import (
     correct_prompt,
     inspect_prompt,
 )
+from library.anima_prompt.animadex import ANIMADEX_DEFAULT_DATA_DIR
 from library.anima_prompt.knowledge import parse_category_path
 
 
@@ -31,6 +32,10 @@ def _kb() -> PromptKnowledgeBase:
         for tag, path in tags.items()
     }
     return PromptKnowledgeBase(general=db)
+
+
+def test_animadex_default_data_dir_uses_ignored_models_folder() -> None:
+    assert ANIMADEX_DEFAULT_DATA_DIR == Path("models") / "animadex"
 
 
 def test_parse_description_category_path() -> None:

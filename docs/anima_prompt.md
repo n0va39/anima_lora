@@ -94,8 +94,8 @@ AnimaDex data is expected to come from the official offline export flow:
 1. Open `animadex.net`.
 2. Create an offline dataset export token from the account page.
 3. Save the token outside the repository.
-4. Download `characters.csv` and `artists.csv` into the local ignored data
-   directory.
+4. Download `characters.csv` and `artists.csv` into the local ignored
+   `models/` directory.
 5. Build JSONL indexes for faster repeated tests.
 
 Default paths:
@@ -105,13 +105,13 @@ Default paths:
 - Token on other OSes:
   `~/.config/anima_prompt/animadex_import_token.json`
 - CSV:
-  `data/animadex/import/characters.csv`
-  `data/animadex/import/artists.csv`
+  `models/animadex/import/characters.csv`
+  `models/animadex/import/artists.csv`
 - Index:
-  `data/animadex/index/character_index.jsonl`
-  `data/animadex/index/artist_index.jsonl`
+  `models/animadex/index/character_index.jsonl`
+  `models/animadex/index/artist_index.jsonl`
 
-`data/animadex/` is ignored by git. Do not commit export tokens or downloaded
+`models/animadex/` is ignored by git. Do not commit export tokens or downloaded
 CSV files.
 
 The import command follows the public AnimaDex export contract:
@@ -146,9 +146,9 @@ Build AnimaDex indexes from existing local CSVs:
 
 ```powershell
 uv run python scripts/anima_prompt.py build-animadex-index `
-  --characters-csv data/animadex/import/characters.csv `
-  --artists-csv data/animadex/import/artists.csv `
-  --output-dir data/animadex/index
+  --characters-csv models/animadex/import/characters.csv `
+  --artists-csv models/animadex/import/artists.csv `
+  --output-dir models/animadex/index
 ```
 
 Inspect a prompt:
@@ -181,8 +181,8 @@ from library.anima_prompt import correct_prompt, load_knowledge_base
 
 kb = load_knowledge_base(
     tag_index="tag_index.jsonl",
-    animadex_character_index="data/animadex/index/character_index.jsonl",
-    animadex_artist_index="data/animadex/index/artist_index.jsonl",
+    animadex_character_index="models/animadex/index/character_index.jsonl",
+    animadex_artist_index="models/animadex/index/artist_index.jsonl",
 )
 
 result = correct_prompt(
