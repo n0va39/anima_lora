@@ -436,6 +436,7 @@ STRINGS: dict[str, str] = {
     "caption_autotag_error": "Autotag failed: {err}",
     "caption_autotag_empty": "The tagger returned no tags for this image.",
     "caption_order_correct": "Fix order",
+    "caption_order_correct_all": "Fix all captions in this directory",
     "caption_order_correct_tooltip": (
         "Reorder count, character, series, artist, and general tags for ANIMA "
         "caption rules. The pre-correction text is saved to caption history."
@@ -443,6 +444,9 @@ STRINGS: dict[str, str] = {
     "caption_order_correct_empty": "There is no caption to correct.",
     "caption_order_correct_no_change": "No caption order changes were needed.",
     "caption_order_correct_failed": "Caption order correction failed: {err}",
+    "caption_order_correct_all_done": (
+        "Caption order correction complete: {changed} changed, {skipped} missing captions."
+    ),
     "caption_versions": "Versions…",
     "caption_history_reason_order_correct": "before order fix",
     "caption_dirty_marker": " *",

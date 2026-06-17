@@ -385,6 +385,7 @@ STRINGS: dict[str, str] = {
     "caption_autotag_error": "自動タグ付けに失敗しました: {err}",
     "caption_autotag_empty": "タガーはこの画像のタグを返しませんでした。",
     "caption_order_correct": "順序補正",
+    "caption_order_correct_all": "このディレクトリの全キャプションを補正",
     "caption_order_correct_tooltip": (
         "ANIMA のキャプション規則に合わせて人数、キャラクター、作品、"
         "作者、一般タグの順序を整理します。補正前のテキストは履歴に保存されます。"
@@ -392,6 +393,9 @@ STRINGS: dict[str, str] = {
     "caption_order_correct_empty": "補正するキャプションがありません。",
     "caption_order_correct_no_change": "補正が必要な順序変更はありません。",
     "caption_order_correct_failed": "キャプション順序補正に失敗しました: {err}",
+    "caption_order_correct_all_done": (
+        "キャプション順序補正完了: {changed} 件変更、{skipped} 件キャプションなし。"
+    ),
     "caption_versions": "履歴…",
     "caption_history_reason_order_correct": "順序補正前",
     "caption_dirty_marker": " *",

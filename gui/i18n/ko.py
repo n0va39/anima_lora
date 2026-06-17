@@ -423,6 +423,7 @@ STRINGS: dict[str, str] = {
     "caption_autotag_error": "자동 태깅 실패: {err}",
     "caption_autotag_empty": "태거가 이 이미지에서 태그를 찾지 못했습니다.",
     "caption_order_correct": "순서 교정",
+    "caption_order_correct_all": "현재 디렉터리 전체 교정",
     "caption_order_correct_tooltip": (
         "ANIMA 캡션 규칙에 맞게 인원수, 캐릭터, 작품, 작가, 일반 태그 순서를 "
         "정리합니다. 적용 전 텍스트는 캡션 이력에 남습니다."
@@ -430,6 +431,9 @@ STRINGS: dict[str, str] = {
     "caption_order_correct_empty": "교정할 캡션이 없습니다.",
     "caption_order_correct_no_change": "교정할 순서 변경이 없습니다.",
     "caption_order_correct_failed": "캡션 순서 교정 실패: {err}",
+    "caption_order_correct_all_done": (
+        "캡션 순서 교정 완료: {changed}개 변경, {skipped}개 캡션 없음."
+    ),
     "caption_versions": "이력…",
     "caption_history_reason_order_correct": "순서 교정 전",
     "caption_dirty_marker": " *",

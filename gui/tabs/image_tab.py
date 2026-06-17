@@ -906,9 +906,17 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self.autotag_btn.setToolTip(t("caption_autotag_tooltip"))
         apply_variant(self.autotag_btn, "info")
         self.autotag_btn.clicked.connect(self._run_autotag)
-        self.correct_caption_btn = QPushButton(t("caption_order_correct"))
-        self.correct_caption_btn.setToolTip(t("caption_order_correct_tooltip"))
-        self.correct_caption_btn.clicked.connect(self._apply_caption_order_correction)
+        self.correct_caption_btn = self._make_button_with_menu(
+            t("caption_order_correct"),
+            t("caption_order_correct_tooltip"),
+            self._apply_caption_order_correction,
+            [
+                (
+                    t("caption_order_correct_all"),
+                    self._apply_caption_order_correction_all,
+                )
+            ],
+        )
         self.versions_btn = QPushButton(t("caption_versions"))
         self.versions_btn.clicked.connect(self._open_versions)
         cap_head.addWidget(self.save_btn)
@@ -2332,6 +2340,66 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._set_caption_text(result.text)
         self._refresh_buttons()
         self._refresh_inline_diff()
+
+    def _correct_caption_text(self, text: str) -> str | None:
+        if not text.strip():
+            return None
+        from library.anima_prompt import correct_prompt
+
+        result = correct_prompt(
+            text,
+            profile="caption",
+            knowledge_base=self._load_caption_knowledge_base(),
+        )
+        return result.text if result.changed else None
+
+    def _apply_caption_order_correction_all(self) -> None:
+        if self._current_dir is None:
+            return
+        if not self._confirm_discard_if_dirty():
+            return
+        captions = [p.with_suffix(".txt") for p in self._all_images]
+        changed = 0
+        skipped_missing = 0
+        failed: list[str] = []
+        for cp in captions:
+            if not cp.is_file():
+                skipped_missing += 1
+                continue
+            try:
+                old_text = cp.read_text(encoding="utf-8")
+                new_text = self._correct_caption_text(old_text)
+                if new_text is None:
+                    continue
+                _append_history(cp, old_text, reason="order_correction")
+                cp.write_text(new_text, encoding="utf-8")
+                changed += 1
+            except Exception as e:
+                failed.append(f"{cp.name}: {e}")
+
+        if (
+            self._current_caption_path is not None
+            and self._current_caption_path.is_file()
+        ):
+            text = self._current_caption_path.read_text(encoding="utf-8")
+            self._disk_text = text
+            self._set_caption_text(text)
+            self._refresh_buttons()
+            self._refresh_inline_diff()
+
+        message = t(
+            "caption_order_correct_all_done",
+            changed=changed,
+            skipped=skipped_missing,
+        )
+        if failed:
+            QMessageBox.warning(
+                self,
+                t("caption_order_correct"),
+                message + "\n\n" + "\n".join(failed[:20]),
+            )
+        else:
+            QMessageBox.information(self, t("caption_order_correct"), message)
 
     def _save(self) -> None:
         cp = self._current_caption_path

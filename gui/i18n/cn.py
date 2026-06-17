@@ -371,6 +371,7 @@ STRINGS: dict[str, str] = {
     "caption_autotag_error": "自动标注失败：{err}",
     "caption_autotag_empty": "标注器未为该图像返回任何标签。",
     "caption_order_correct": "修正顺序",
+    "caption_order_correct_all": "修正当前目录全部标注",
     "caption_order_correct_tooltip": (
         "按 ANIMA 标注规则整理人数、角色、作品、作者和普通标签顺序。"
         "修正前的文本会保存到标注历史。"
@@ -378,6 +379,9 @@ STRINGS: dict[str, str] = {
     "caption_order_correct_empty": "没有可修正的标注。",
     "caption_order_correct_no_change": "无需修正标注顺序。",
     "caption_order_correct_failed": "标注顺序修正失败：{err}",
+    "caption_order_correct_all_done": (
+        "标注顺序修正完成：{changed} 个已更改，{skipped} 个无标注。"
+    ),
     "caption_versions": "历史……",
     "caption_history_reason_order_correct": "顺序修正前",
     "caption_dirty_marker": " *",
