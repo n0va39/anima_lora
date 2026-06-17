@@ -10,6 +10,7 @@ from datetime import datetime
 from html import escape
 from pathlib import Path
 
+import toml
 from PySide6.QtCore import (
     QElapsedTimer,
     QEvent,
@@ -83,6 +84,7 @@ from library.datasets.curation_actions import (
     rel_key,
     save_curation_decisions,
 )
+from library.preprocess.resize_preview import compute_resize_preview
 
 # Stdio protocol sentinels of the resident autotag worker (kept in sync with
 # ``scripts/anima_tagger/autotag_server.py``). Hardcoded rather than imported
@@ -101,6 +103,9 @@ _AUTOTAG_GPU_WATCH_MS = 700
 # QPainter.setOpacity rather than baked into the color.
 _MASK_OVERLAY_COLOR_OPAQUE = QColor(255, 60, 60, 255)
 _MASK_OVERLAY_OPACITY = 0.55
+_RESIZE_PREVIEW_COLOR = QColor(40, 220, 120, 255)
+_RESIZE_PREVIEW_SHADE = QColor(0, 0, 0, 72)
+_RESIZE_PREVIEW_LABEL_BG = QColor(0, 0, 0, 180)
 
 # Text prefixes for GUI preprocess decisions and images marked for moving.
 _USE_MARK_PREFIX = "■ "
@@ -215,6 +220,78 @@ def _compose_mask_overlay(source: QPixmap, mask_path: Path) -> QPixmap:
         p.drawImage(0, 0, layer)
     finally:
         p.end()
+    return result
+
+
+def _load_resize_preview_target_res():
+    path = ROOT / "configs" / "preprocess.toml"
+    if not path.is_file():
+        return None
+    try:
+        data = toml.loads(path.read_text(encoding="utf-8"))
+    except (OSError, toml.TomlDecodeError):
+        return None
+    return data.get("target_res")
+
+
+def _compose_resize_preview_overlay(source: QPixmap, target_res) -> QPixmap:
+    try:
+        preview = compute_resize_preview(
+            source.width(), source.height(), target_res
+        )
+    except (KeyError, TypeError, ValueError):
+        return source
+
+    rect = preview.kept_rect
+    left = max(0, min(source.width(), round(rect.left)))
+    top = max(0, min(source.height(), round(rect.top)))
+    right = max(left, min(source.width(), round(rect.left + rect.width)))
+    bottom = max(top, min(source.height(), round(rect.top + rect.height)))
+
+    result = QPixmap(source)
+    painter = QPainter(result)
+    try:
+        painter.setPen(Qt.NoPen)
+        painter.fillRect(0, 0, source.width(), top, _RESIZE_PREVIEW_SHADE)
+        painter.fillRect(
+            0,
+            bottom,
+            source.width(),
+            source.height() - bottom,
+            _RESIZE_PREVIEW_SHADE,
+        )
+        painter.fillRect(0, top, left, bottom - top, _RESIZE_PREVIEW_SHADE)
+        painter.fillRect(
+            right,
+            top,
+            source.width() - right,
+            bottom - top,
+            _RESIZE_PREVIEW_SHADE,
+        )
+
+        pen_width = max(2, round(min(source.width(), source.height()) * 0.004))
+        painter.setPen(QPen(_RESIZE_PREVIEW_COLOR, pen_width, Qt.SolidLine))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRect(
+            QRect(left, top, right - left, bottom - top).adjusted(1, 1, -1, -1)
+        )
+
+        bucket_w, bucket_h = preview.bucket_size
+        label = t("dataset_resize_preview_label").format(
+            width=bucket_w, height=bucket_h, edge=preview.target_edge
+        )
+        metrics = painter.fontMetrics()
+        label_w = metrics.horizontalAdvance(label) + 12
+        label_h = metrics.height() + 8
+        label_x = max(6, min(left + 6, source.width() - label_w - 6))
+        label_y = max(6, min(top + 6, source.height() - label_h - 6))
+        label_rect = QRect(label_x, label_y, label_w, label_h)
+        painter.setPen(Qt.NoPen)
+        painter.fillRect(label_rect, _RESIZE_PREVIEW_LABEL_BG)
+        painter.setPen(_RESIZE_PREVIEW_COLOR)
+        painter.drawText(label_rect, Qt.AlignCenter, label)
+    finally:
+        painter.end()
     return result
 
 
@@ -558,10 +635,11 @@ class CaptionVersionsDialog(QDialog):
 
 
 class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
-    def __init__(self):
+    def __init__(self, preprocess_tab=None):
         super().__init__()
         # Daemon job observer so curate-group's progress bar lives in this tab.
         self._init_job_observer()
+        self._preprocess_tab = preprocess_tab
         self._all_images: list[Path] = []  # unfiltered, alphabetical (from _imgs)
         self._images: list[Path] = []  # currently displayed (filter + sort applied)
         self._dirs = _image_dirs()
@@ -688,6 +766,11 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self.overlay_cb.setEnabled(False)
         self.overlay_cb.toggled.connect(self._on_overlay_toggled)
         img_head.addWidget(self.overlay_cb)
+        self.resize_preview_cb = QCheckBox(t("dataset_resize_preview"))
+        self.resize_preview_cb.setToolTip(t("dataset_resize_preview_tooltip"))
+        self.resize_preview_cb.setEnabled(False)
+        self.resize_preview_cb.toggled.connect(self._on_overlay_toggled)
+        img_head.addWidget(self.resize_preview_cb)
         self.preprocess_use_btn = QPushButton(t("dataset_preprocess_use_short"))
         self.preprocess_use_btn.setToolTip(t("dataset_preprocess_use_tooltip"))
         self.preprocess_use_btn.clicked.connect(
@@ -1608,23 +1691,36 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         )
         self._overlay_pm = None  # compose lazily in _apply_image_view
         self.overlay_cb.setEnabled(self._mask_path is not None)
+        self.resize_preview_cb.setEnabled(source is not None)
         self._apply_image_view()
 
     def _apply_image_view(self) -> None:
         """Push the right pixmap onto ``self.img`` based on overlay state."""
         if self._source_pm is None:
             return
+        pm = self._source_pm
         if self.overlay_cb.isChecked() and self._mask_path is not None:
             if self._overlay_pm is None:
                 self._overlay_pm = _compose_mask_overlay(
                     self._source_pm, self._mask_path
                 )
-            self.img.set_source(self._overlay_pm)
-        else:
-            self.img.set_source(self._source_pm)
+            pm = self._overlay_pm
+        if self.resize_preview_cb.isChecked():
+            pm = _compose_resize_preview_overlay(pm, self._resize_preview_target_res())
+        self.img.set_source(pm)
 
     def _on_overlay_toggled(self, _checked: bool) -> None:
         self._apply_image_view()
+
+    def _resize_preview_target_res(self):
+        tab = self._preprocess_tab
+        widget = getattr(tab, "target_res_widget", None)
+        if widget is not None:
+            try:
+                return widget.value()
+            except (AttributeError, TypeError, ValueError):
+                pass
+        return _load_resize_preview_target_res()
 
     def _current_index(self) -> int:
         """Index into ``self._images`` of the currently selected image.
@@ -1943,6 +2039,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._mask_path = None
         self._overlay_pm = None
         self.overlay_cb.setEnabled(False)
+        self.resize_preview_cb.setEnabled(False)
         self.img.clear()
         self._refresh_image_meta(None)
         self._refresh_preprocess_controls()
