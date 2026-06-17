@@ -527,6 +527,7 @@ STRINGS: dict[str, str] = {
     "model_sam3": "SAM3 — テキストバブルマスキング",
     "model_mit": "MIT — 漫画テキストマスキング",
     "model_pe": "PE-Core-L14-336 — ビジョンエンコーダー (CMMD 検証 / DCW)",
+    "model_animadex": "AnimaDex — キャプション用キャラクター / アーティストDB",
     # HuggingFace 認証 (モデルダイアログ)
     "models_hf_token_placeholder": "HuggingFace トークンを貼り付けてください (hf_…)",
     "models_hf_authenticate": "認証",
@@ -540,6 +541,27 @@ STRINGS: dict[str, str] = {
     "models_hf_authenticating": "認証中…",
     "models_hf_logged_in": "✓ {name} としてログインしました。",
     "models_hf_login_failed": "認証に失敗しました: {err}",
+    # AnimaDex import (Models dialog)
+    "models_animadex_header": "AnimaDex キャプションデータベース",
+    "models_animadex_token_placeholder": "AnimaDex export token を貼り付けてください",
+    "models_animadex_save_token": "トークンを保存",
+    "models_animadex_import": "CSVをダウンロード",
+    "models_animadex_hint": (
+        "キャプション順序補正でキャラクター、作品、アーティスト判定に使用します。"
+        '<a href="https://animadex.net">animadex.net</a> で offline export '
+        "token を作成し、characters.csv と artists.csv を models/animadex/ "
+        "にダウンロードします。"
+    ),
+    "models_animadex_present": "✓ AnimaDex CSV とインデックスが利用可能です。",
+    "models_animadex_missing": "AnimaDex CSV はまだダウンロードされていません。",
+    "models_animadex_token_empty": "先にトークンを貼り付けるか、保存済みトークンを用意してください。",
+    "models_animadex_saving": "AnimaDex トークンを保存中…",
+    "models_animadex_token_saved": "✓ AnimaDex トークンを保存しました。",
+    "models_animadex_importing": "AnimaDex CSV をダウンロードし、インデックスを作成中…",
+    "models_animadex_import_done": (
+        "✓ AnimaDex import 完了: {characters} キャラクター、{artists} アーティスト。"
+    ),
+    "models_animadex_failed": "AnimaDex import に失敗しました: {err}",
     # Update dialog
     "update_title": "anima_lora の更新",
     "update_warning": "更新により GitHub から最新リリースが取得され、作業ツリーが上書きされます "

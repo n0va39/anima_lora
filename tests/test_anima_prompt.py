@@ -111,6 +111,37 @@ def test_no_artist_placeholder_sorts_in_artist_slot_with_or_without_marker() -> 
         ]
 
 
+def test_anima_person_count_tags_are_builtin() -> None:
+    result = correct_prompt(
+        "long hair, hatsune miku, multiple girls, 6+girls, solo",
+        knowledge_base=PromptKnowledgeBase.empty(),
+    )
+
+    assert result.text == "multiple girls, 6+girls, solo, long hair, hatsune miku"
+    assert [token.section.value for token in result.tokens] == [
+        "count",
+        "count",
+        "count",
+        "unknown",
+        "unknown",
+    ]
+
+
+def test_general_and_unknown_tail_preserves_input_order() -> None:
+    result = correct_prompt(
+        "mystery tag, long hair, 1girl, another unknown",
+        knowledge_base=_kb(),
+    )
+
+    assert result.text == "1girl, mystery tag, long hair, another unknown"
+    assert [token.section.value for token in result.tokens] == [
+        "count",
+        "unknown",
+        "general",
+        "unknown",
+    ]
+
+
 def test_artist_override_can_promote_manual_trigger_word() -> None:
     result = correct_prompt(
         "long hair, @special_trigger, 1girl",
@@ -193,7 +224,7 @@ def test_inspect_prompt_keeps_original_order() -> None:
     assert [token.section.value for token in result.tokens] == ["general", "count"]
 
 
-def test_animadex_csv_classifies_character_copyright_artist_and_core_tags(
+def test_animadex_csv_classifies_character_copyright_artist_and_count_core_tags(
     tmp_path: Path,
 ) -> None:
     characters = tmp_path / "characters.csv"
@@ -219,13 +250,13 @@ def test_animadex_csv_classifies_character_copyright_artist_and_core_tags(
     )
 
     assert result.text == "1girl, hatsune miku, vocaloid, @0-den, twintails"
-    assert result.unknown_tags == ()
+    assert result.unknown_tags == ("twintails",)
     assert [token.section.value for token in result.tokens] == [
         "count",
         "character",
         "copyright",
         "artist",
-        "general",
+        "unknown",
     ]
 
 

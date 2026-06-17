@@ -10,9 +10,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from .animadex import AnimaDexDB, GENDER_TAGS
+from .animadex import AnimaDexDB
 from .models import TagInfo
 from .normalize import lookup_key
+from .ordering import ANIMA_PERSON_COUNT_TAGS
 
 TAG_CSV_ENV = "ANIMA_PROMPT_TAG_CSV"
 TAG_INDEX_ENV = "ANIMA_PROMPT_TAG_INDEX"
@@ -151,11 +152,10 @@ class PromptKnowledgeBase:
                 post_count=info.post_count if info else None,
                 source="animadex",
             )
-        if key in self.animadex.core_tags:
-            category_path = ("인물", "인원수") if key in GENDER_TAGS else ("일반",)
+        if key in self.animadex.core_tags and key in ANIMA_PERSON_COUNT_TAGS:
             return TagInfo(
                 tag=key,
-                category_path=category_path,
+                category_path=("인물", "인원수"),
                 post_count=info.post_count if info else None,
                 source="animadex_core",
             )

@@ -35,6 +35,16 @@ from gui.i18n import t
 from gui.process import kill_process_tree, setup_kill_safe
 from gui.theme import tok
 from gui.widgets import apply_variant
+from library.anima_prompt.animadex import (
+    ANIMADEX_DEFAULT_DATA_DIR,
+    ANIMADEX_INDEX_DIR_NAME,
+    AnimaDexDB,
+    AnimaDexImportClient,
+    AnimaDexImportError,
+    AnimaDexImportToken,
+    AnimaDexTokenStore,
+    resolve_import_token,
+)
 
 # (task-key, display-label-i18n-key, [paths-relative-to-ROOT-that-must-all-exist])
 # Status is "installed" iff every path resolves; otherwise "missing".
@@ -182,6 +192,67 @@ class _HFLoginThread(QThread):
         self.done.emit(result)
 
 
+class _AnimaDexImportThread(QThread):
+    """Save an AnimaDex token and optionally download/build the local CSV index."""
+
+    done = Signal(dict)
+
+    def __init__(
+        self,
+        *,
+        token: str = "",
+        import_csvs: bool = False,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._token = token.strip()
+        self._import_csvs = import_csvs
+
+    def run(self) -> None:  # noqa: D401 — Qt override
+        result = {
+            "ok": False,
+            "action": "import" if self._import_csvs else "save",
+            "error": "",
+        }
+        try:
+            token = (
+                AnimaDexImportToken(token=self._token)
+                if self._token
+                else resolve_import_token()
+            )
+            if self._token:
+                AnimaDexTokenStore.default().save(token)
+            if not self._import_csvs:
+                result["ok"] = True
+                self.done.emit(result)
+                return
+
+            data_dir = ROOT / ANIMADEX_DEFAULT_DATA_DIR
+            client = AnimaDexImportClient(site=token.site, token=token.token)
+            import_result = client.download_required_csvs(data_dir)
+            db = AnimaDexDB.from_csvs(
+                characters_csv=import_result.characters_csv,
+                artists_csv=import_result.artists_csv,
+            )
+            character_index, artist_index = db.write_jsonl(
+                data_dir / ANIMADEX_INDEX_DIR_NAME
+            )
+            result.update(
+                {
+                    "ok": True,
+                    "characters": str(import_result.characters_csv),
+                    "artists": str(import_result.artists_csv),
+                    "character_index": str(character_index),
+                    "artist_index": str(artist_index),
+                    "character_count": len(db.character_records),
+                    "artist_count": len(db.artist_records),
+                }
+            )
+        except (AnimaDexImportError, OSError, ValueError) as e:
+            result["error"] = str(e)
+        self.done.emit(result)
+
+
 class ModelsDialog(_StreamingDialog):
     """One row per model group: label · status · download button.
 
@@ -195,6 +266,7 @@ class ModelsDialog(_StreamingDialog):
         # (status_label, paths, button) — _after_finished refreshes every row after download-all.
         self._rows: list[tuple[QLabel, list[str], QPushButton]] = []
         self._login_thread: _HFLoginThread | None = None
+        self._animadex_thread: _AnimaDexImportThread | None = None
         super().__init__(t("models_title"), parent)
 
     def _build_actions(self, layout: QVBoxLayout) -> None:
@@ -220,6 +292,40 @@ class ModelsDialog(_StreamingDialog):
         hint.setStyleSheet(f"color:{tok('text_dim')};font-size:11px;margin-bottom:6px;")
         layout.addWidget(hint)
         self._refresh_auth_status()
+
+        animadex_header = QLabel(t("models_animadex_header"))
+        animadex_header.setStyleSheet("font-weight:bold;margin-top:8px;")
+        layout.addWidget(animadex_header)
+
+        animadex_row = QHBoxLayout()
+        self.animadex_token_edit = QLineEdit()
+        self.animadex_token_edit.setEchoMode(QLineEdit.Password)
+        self.animadex_token_edit.setPlaceholderText(
+            t("models_animadex_token_placeholder")
+        )
+        self.animadex_token_edit.returnPressed.connect(self._save_animadex_token)
+        animadex_row.addWidget(self.animadex_token_edit, 1)
+        self.animadex_save_btn = QPushButton(t("models_animadex_save_token"))
+        self.animadex_save_btn.clicked.connect(self._save_animadex_token)
+        animadex_row.addWidget(self.animadex_save_btn)
+        self.animadex_import_btn = QPushButton(t("models_animadex_import"))
+        apply_variant(self.animadex_import_btn, "info")
+        self.animadex_import_btn.clicked.connect(self._import_animadex)
+        animadex_row.addWidget(self.animadex_import_btn)
+        layout.addLayout(animadex_row)
+
+        self.animadex_status = QLabel()
+        self.animadex_status.setWordWrap(True)
+        layout.addWidget(self.animadex_status)
+
+        animadex_hint = QLabel(t("models_animadex_hint"))
+        animadex_hint.setWordWrap(True)
+        animadex_hint.setOpenExternalLinks(True)
+        animadex_hint.setStyleSheet(
+            f"color:{tok('text_dim')};font-size:11px;margin-bottom:6px;"
+        )
+        layout.addWidget(animadex_hint)
+        self._refresh_animadex_status()
 
         intro = QLabel(t("models_intro"))
         intro.setWordWrap(True)
@@ -263,6 +369,22 @@ class ModelsDialog(_StreamingDialog):
             row.addWidget(btn)
 
             layout.addLayout(row)
+
+        animadex_model_row = QHBoxLayout()
+        animadex_name = QLabel(t("model_animadex"))
+        animadex_name.setMinimumWidth(280)
+        animadex_model_row.addWidget(animadex_name)
+
+        self.animadex_model_status = QLabel()
+        self.animadex_model_status.setMinimumWidth(110)
+        animadex_model_row.addWidget(self.animadex_model_status)
+        animadex_model_row.addStretch()
+
+        self.animadex_model_btn = QPushButton()
+        self.animadex_model_btn.clicked.connect(self._import_animadex)
+        animadex_model_row.addWidget(self.animadex_model_btn)
+        layout.addLayout(animadex_model_row)
+        self._refresh_animadex_model_row()
 
     def _download(
         self,
@@ -318,11 +440,109 @@ class ModelsDialog(_StreamingDialog):
             )
             self.auth_status.setStyleSheet(f"color:{tok('err')};")
 
+    def _animadex_paths_present(self) -> bool:
+        data_dir = ROOT / ANIMADEX_DEFAULT_DATA_DIR
+        return all(
+            (data_dir / rel).is_file()
+            for rel in (
+                "import/characters.csv",
+                "import/artists.csv",
+                "index/character_index.jsonl",
+                "index/artist_index.jsonl",
+            )
+        )
+
+    def _refresh_animadex_status(self) -> None:
+        if self._animadex_paths_present():
+            self.animadex_status.setText(t("models_animadex_present"))
+            self.animadex_status.setStyleSheet(f"color:{tok('ok')};")
+        else:
+            self.animadex_status.setText(t("models_animadex_missing"))
+            self.animadex_status.setStyleSheet(f"color:{tok('text_dim')};")
+        self._refresh_animadex_model_row()
+
+    def _refresh_animadex_model_row(self) -> None:
+        if not hasattr(self, "animadex_model_status"):
+            return
+        installed = self._animadex_paths_present()
+        self.animadex_model_status.setText(
+            t("models_installed") if installed else t("models_missing")
+        )
+        self.animadex_model_status.setStyleSheet(
+            f"color:{tok('ok')};" if installed else f"color:{tok('err')};"
+        )
+        self.animadex_model_btn.setText(
+            t("models_redownload") if installed else t("models_download")
+        )
+
+    def _start_animadex_thread(self, *, import_csvs: bool) -> None:
+        token = self.animadex_token_edit.text().strip()
+        has_stored_token = False
+        if not token:
+            try:
+                has_stored_token = AnimaDexTokenStore.default().load() is not None
+            except AnimaDexImportError:
+                has_stored_token = False
+        if not token and (not import_csvs or not has_stored_token):
+            self.animadex_status.setText(t("models_animadex_token_empty"))
+            self.animadex_status.setStyleSheet(f"color:{tok('err')};")
+            return
+        if self._animadex_thread is not None and self._animadex_thread.isRunning():
+            return
+        self.animadex_save_btn.setEnabled(False)
+        self.animadex_import_btn.setEnabled(False)
+        if hasattr(self, "animadex_model_btn"):
+            self.animadex_model_btn.setEnabled(False)
+        self.animadex_status.setText(
+            t("models_animadex_importing")
+            if import_csvs
+            else t("models_animadex_saving")
+        )
+        self.animadex_status.setStyleSheet(f"color:{tok('text_dim')};")
+        self._animadex_thread = _AnimaDexImportThread(
+            token=token,
+            import_csvs=import_csvs,
+            parent=self,
+        )
+        self._animadex_thread.done.connect(self._on_animadex_result)
+        self._animadex_thread.start()
+
+    def _save_animadex_token(self) -> None:
+        self._start_animadex_thread(import_csvs=False)
+
+    def _import_animadex(self) -> None:
+        self._start_animadex_thread(import_csvs=True)
+
+    def _on_animadex_result(self, result: dict) -> None:
+        self.animadex_save_btn.setEnabled(True)
+        self.animadex_import_btn.setEnabled(True)
+        self.animadex_model_btn.setEnabled(True)
+        if result.get("ok"):
+            self.animadex_token_edit.clear()
+            if result.get("action") == "import":
+                self.animadex_status.setText(
+                    t(
+                        "models_animadex_import_done",
+                        characters=result.get("character_count", 0),
+                        artists=result.get("artist_count", 0),
+                    )
+                )
+            else:
+                self.animadex_status.setText(t("models_animadex_token_saved"))
+            self.animadex_status.setStyleSheet(f"color:{tok('ok')};font-weight:bold;")
+            self._refresh_animadex_model_row()
+            return
+        self.animadex_status.setText(
+            t("models_animadex_failed", err=result.get("error", ""))
+        )
+        self.animadex_status.setStyleSheet(f"color:{tok('err')};")
+
     def _set_busy(self, busy: bool) -> None:
         super()._set_busy(busy)
         self.all_btn.setEnabled(not busy)
         for _status, _paths, b in self._rows:
             b.setEnabled(not busy)
+        self.animadex_model_btn.setEnabled(not busy)
 
     def _after_finished(self, exit_code: int) -> None:
         # Refresh every row — download-models touches several groups in one run.
@@ -335,6 +555,7 @@ class ModelsDialog(_StreamingDialog):
                 f"color:{tok('ok')};" if installed else f"color:{tok('err')};"
             )
             btn.setText(t("models_redownload") if installed else t("models_download"))
+        self._refresh_animadex_model_row()
 
         if exit_code != 0:
             QMessageBox.warning(
@@ -353,6 +574,8 @@ class ModelsDialog(_StreamingDialog):
         # Without wait(), Qt warns about destroying a running QThread.
         if self._login_thread is not None and self._login_thread.isRunning():
             self._login_thread.wait(2000)
+        if self._animadex_thread is not None and self._animadex_thread.isRunning():
+            self._animadex_thread.wait(2000)
         super().closeEvent(ev)
 
 

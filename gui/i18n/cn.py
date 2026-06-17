@@ -508,6 +508,7 @@ STRINGS: dict[str, str] = {
     "model_sam3": "SAM3 — 对话气泡蒙版",
     "model_mit": "MIT — 漫画文字蒙版",
     "model_pe": "PE-Core-L14-336 — 视觉编码器 (CMMD 验证 / DCW)",
+    "model_animadex": "AnimaDex — 标注角色 / 艺术家数据库",
     # HuggingFace 认证（模型对话框）
     "models_hf_token_placeholder": "粘贴你的 HuggingFace 令牌 (hf_…)",
     "models_hf_authenticate": "认证",
@@ -521,6 +522,27 @@ STRINGS: dict[str, str] = {
     "models_hf_authenticating": "正在认证…",
     "models_hf_logged_in": "✓ 已登录为 {name}。",
     "models_hf_login_failed": "认证失败：{err}",
+    # AnimaDex import (Models dialog)
+    "models_animadex_header": "AnimaDex 标注数据库",
+    "models_animadex_token_placeholder": "粘贴你的 AnimaDex export token",
+    "models_animadex_save_token": "保存令牌",
+    "models_animadex_import": "下载 CSV",
+    "models_animadex_hint": (
+        "用于标注顺序修正中的角色、作品和艺术家判定。"
+        '打开 <a href="https://animadex.net">animadex.net</a> 创建 offline '
+        "export token 后，将 characters.csv 和 artists.csv 下载到 "
+        "models/animadex/。"
+    ),
+    "models_animadex_present": "✓ AnimaDex CSV 和索引已可用。",
+    "models_animadex_missing": "尚未下载 AnimaDex CSV。",
+    "models_animadex_token_empty": "请先粘贴令牌，或准备已保存的令牌。",
+    "models_animadex_saving": "正在保存 AnimaDex 令牌…",
+    "models_animadex_token_saved": "✓ AnimaDex 令牌已保存。",
+    "models_animadex_importing": "正在下载 AnimaDex CSV 并构建索引…",
+    "models_animadex_import_done": (
+        "✓ AnimaDex 导入完成：{characters} 个角色，{artists} 个艺术家。"
+    ),
+    "models_animadex_failed": "AnimaDex 导入失败：{err}",
     # Update dialog
     "update_title": "更新 anima_lora",
     "update_warning": "更新会从 GitHub 拉取最新版本并覆盖工作树 "

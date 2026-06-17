@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import re
-
 from .models import TagInfo, TagSection
 from .normalize import lookup_key
 
@@ -31,11 +29,33 @@ SAFETY_TAGS = {
     "explicit",
 }
 
-PERSON_TYPE_TAGS = {
-    "no humans",
-}
-
-COUNT_RE = re.compile(r"^\d+\s*(girl|girls|boy|boys|other|others)$")
+ANIMA_PERSON_COUNT_TAGS = frozenset(
+    {
+        "solo",
+        "no humans",
+        "multiple boys",
+        "multiple girls",
+        "multiple others",
+        "1boy",
+        "2boys",
+        "3boys",
+        "4boys",
+        "5boys",
+        "6+boys",
+        "1girl",
+        "2girls",
+        "3girls",
+        "4girls",
+        "5girls",
+        "6+girls",
+        "1other",
+        "2others",
+        "3others",
+        "4others",
+        "5others",
+        "6+others",
+    }
+)
 
 SECTION_ORDER = {
     TagSection.QUALITY: 0,
@@ -47,7 +67,7 @@ SECTION_ORDER = {
     TagSection.COPYRIGHT: 6,
     TagSection.ARTIST: 7,
     TagSection.GENERAL: 8,
-    TagSection.UNKNOWN: 9,
+    TagSection.UNKNOWN: 8,
 }
 
 
@@ -61,7 +81,7 @@ def classify_tag(tag: str, info: TagInfo | None = None) -> TagSection:
         return TagSection.YEAR
     if key in SAFETY_TAGS:
         return TagSection.SAFETY
-    if COUNT_RE.match(key) or key in PERSON_TYPE_TAGS:
+    if key in ANIMA_PERSON_COUNT_TAGS:
         return TagSection.COUNT
     if tag.strip().startswith("@"):
         return TagSection.ARTIST

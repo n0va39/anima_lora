@@ -565,6 +565,7 @@ STRINGS: dict[str, str] = {
     "model_sam3": "SAM3 — 말풍선 마스킹",
     "model_mit": "MIT — 만화 텍스트 마스킹",
     "model_pe": "PE-Core-L14-336 — 비전 인코더 (CMMD 검증 / DCW)",
+    "model_animadex": "AnimaDex — 캡션 캐릭터 / 작가 데이터베이스",
     # HuggingFace 인증 (모델 다이얼로그)
     "models_hf_token_placeholder": "HuggingFace 토큰을 붙여넣으세요 (hf_…)",
     "models_hf_authenticate": "인증",
@@ -578,6 +579,27 @@ STRINGS: dict[str, str] = {
     "models_hf_authenticating": "인증 중…",
     "models_hf_logged_in": "✓ {name} (으)로 로그인되었습니다.",
     "models_hf_login_failed": "인증 실패: {err}",
+    # AnimaDex 가져오기 (모델 다이얼로그)
+    "models_animadex_header": "AnimaDex 캡션 데이터베이스",
+    "models_animadex_token_placeholder": "AnimaDex export token을 붙여넣으세요",
+    "models_animadex_save_token": "토큰 저장",
+    "models_animadex_import": "CSV 다운로드",
+    "models_animadex_hint": (
+        "캡션 순서 교정에서 캐릭터, 작품, 작가 판정에 사용합니다. "
+        '<a href="https://animadex.net">animadex.net</a>에서 offline export '
+        "token을 만든 뒤 characters.csv와 artists.csv를 models/animadex/ "
+        "아래로 다운로드합니다."
+    ),
+    "models_animadex_present": "✓ AnimaDex CSV와 인덱스가 준비되어 있습니다.",
+    "models_animadex_missing": "AnimaDex CSV가 아직 다운로드되지 않았습니다.",
+    "models_animadex_token_empty": "먼저 토큰을 붙여넣거나 저장된 토큰을 준비하세요.",
+    "models_animadex_saving": "AnimaDex 토큰 저장 중…",
+    "models_animadex_token_saved": "✓ AnimaDex 토큰이 저장되었습니다.",
+    "models_animadex_importing": "AnimaDex CSV 다운로드 및 인덱스 생성 중…",
+    "models_animadex_import_done": (
+        "✓ AnimaDex 가져오기 완료: 캐릭터 {characters}개, 작가 {artists}개."
+    ),
+    "models_animadex_failed": "AnimaDex 가져오기 실패: {err}",
     # Update dialog
     "update_title": "anima_lora 업데이트",
     "update_warning": "업데이트는 GitHub에서 최신 릴리스를 받아 작업 트리를 덮어씁니다 "

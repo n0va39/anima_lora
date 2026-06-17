@@ -585,6 +585,7 @@ STRINGS: dict[str, str] = {
     "model_sam3": "SAM3 — text-bubble masking",
     "model_mit": "MIT — manga text masking",
     "model_pe": "PE-Core-L14-336 — vision encoder (CMMD validation / DCW)",
+    "model_animadex": "AnimaDex — caption character / artist database",
     # HuggingFace authentication (Models dialog)
     "models_hf_token_placeholder": "Paste your HuggingFace token (hf_…)",
     "models_hf_authenticate": "Authenticate",
@@ -598,6 +599,27 @@ STRINGS: dict[str, str] = {
     "models_hf_authenticating": "Authenticating…",
     "models_hf_logged_in": "✓ Logged in as {name}.",
     "models_hf_login_failed": "Authentication failed: {err}",
+    # AnimaDex import (Models dialog)
+    "models_animadex_header": "AnimaDex caption database",
+    "models_animadex_token_placeholder": "Paste your AnimaDex export token",
+    "models_animadex_save_token": "Save token",
+    "models_animadex_import": "Download CSVs",
+    "models_animadex_hint": (
+        "Used by caption order correction for character, copyright, and artist "
+        'lookup. Open <a href="https://animadex.net">animadex.net</a>, create '
+        "an offline export token, then download characters.csv and artists.csv "
+        "into models/animadex/."
+    ),
+    "models_animadex_present": "✓ AnimaDex CSVs and indexes are available.",
+    "models_animadex_missing": "AnimaDex CSVs are not downloaded yet.",
+    "models_animadex_token_empty": "Paste a token first, or save one before downloading.",
+    "models_animadex_saving": "Saving AnimaDex token…",
+    "models_animadex_token_saved": "✓ AnimaDex token saved.",
+    "models_animadex_importing": "Downloading AnimaDex CSVs and building indexes…",
+    "models_animadex_import_done": (
+        "✓ AnimaDex import complete: {characters} characters, {artists} artists."
+    ),
+    "models_animadex_failed": "AnimaDex import failed: {err}",
     # Update dialog
     "update_title": "Update anima_lora",
     "update_warning": "Update will pull the latest release from GitHub and overwrite the working "
