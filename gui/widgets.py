@@ -107,6 +107,16 @@ def _target_res_buckets() -> dict[int, tuple[tuple[int, int], ...]]:
     }
 
 
+class _BucketMenuPanel(QWidget):
+    """Keep a bucket popup open when the user misses a checkbox row slightly."""
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        event.accept()
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        event.accept()
+
+
 class _TargetResWidget(QWidget):
     """Horizontal row of tier checkboxes for the multi-scale ``target_res`` knob.
 
@@ -155,13 +165,14 @@ class _TargetResWidget(QWidget):
             toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
             toggle.setPopupMode(QToolButton.InstantPopup)
             popup = QMenu(toggle)
-            panel = QWidget(popup)
+            panel = _BucketMenuPanel(popup)
             panel_lay = QVBoxLayout(panel)
-            panel_lay.setContentsMargins(8, 6, 8, 6)
-            panel_lay.setSpacing(2)
+            panel_lay.setContentsMargins(8, 4, 8, 4)
+            panel_lay.setSpacing(0)
             for width, height in _target_res_buckets().get(edge, ()):
                 ratio = width / height
                 cb_bucket = QCheckBox(f"{width}x{height} ({ratio:.2f})")
+                cb_bucket.setMinimumHeight(22)
                 cb_bucket.setToolTip(t("target_res_bucket_tooltip", edge=edge))
                 cb_bucket.toggled.connect(self._on_bucket_toggled)
                 panel_lay.addWidget(cb_bucket)
