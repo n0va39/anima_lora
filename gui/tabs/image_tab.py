@@ -379,10 +379,19 @@ def _read_history(caption_path: Path) -> list[dict]:
     return out
 
 
-def _append_history(caption_path: Path, prev_text: str) -> None:
+def _append_history(
+    caption_path: Path, prev_text: str, *, reason: str = "save"
+) -> None:
     """Append the previous on-disk text as a history entry."""
     hp = _history_path(caption_path)
-    entry = {"ts": datetime.now().isoformat(timespec="seconds"), "text": prev_text}
+    history = _read_history(caption_path)
+    if history and history[-1].get("text") == prev_text:
+        return
+    entry = {
+        "ts": datetime.now().isoformat(timespec="seconds"),
+        "text": prev_text,
+        "reason": reason,
+    }
     with hp.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
@@ -601,7 +610,10 @@ class CaptionVersionsDialog(QDialog):
             self.list.setEnabled(False)
         else:
             for entry in self._history:
-                self.list.addItem(entry["ts"])
+                label = str(entry["ts"])
+                if entry.get("reason") == "order_correction":
+                    label += " · " + t("caption_history_reason_order_correct")
+                self.list.addItem(label)
         self.list.currentRowChanged.connect(self._show_diff)
         sp.addWidget(self.list)
 
@@ -674,6 +686,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._current_caption_path: Path | None = None
         self._disk_text: str = ""  # last value seen on disk (for diff baseline)
         self._suspend_dirty = False  # while we set text programmatically
+        self._caption_knowledge_base = None
         # Resident autotag worker: a torch QProcess holding the tagger model so
         # consecutive clicks skip the reload; torn down before any other GPU
         # work frees the card. See _run_autotag / _kill_tagger_worker.
@@ -893,11 +906,15 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self.autotag_btn.setToolTip(t("caption_autotag_tooltip"))
         apply_variant(self.autotag_btn, "info")
         self.autotag_btn.clicked.connect(self._run_autotag)
+        self.correct_caption_btn = QPushButton(t("caption_order_correct"))
+        self.correct_caption_btn.setToolTip(t("caption_order_correct_tooltip"))
+        self.correct_caption_btn.clicked.connect(self._apply_caption_order_correction)
         self.versions_btn = QPushButton(t("caption_versions"))
         self.versions_btn.clicked.connect(self._open_versions)
         cap_head.addWidget(self.save_btn)
         cap_head.addWidget(self.revert_btn)
         cap_head.addWidget(self.autotag_btn)
+        cap_head.addWidget(self.correct_caption_btn)
         cap_head.addWidget(self.versions_btn)
         rl.addLayout(cap_head)
 
@@ -2249,6 +2266,10 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         # Versions button is enabled whenever there's a caption file context;
         # the dialog itself shows "(no prior versions)" when empty.
         self.versions_btn.setEnabled(self._current_caption_path is not None)
+        self.correct_caption_btn.setEnabled(
+            self._current_caption_path is not None
+            and bool(self.cap.toPlainText().strip())
+        )
 
     def _refresh_inline_diff(self) -> None:
         """Highlight inserted spans (vs disk) directly in the editor."""
@@ -2271,6 +2292,46 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             es.format = fmt
             sels.append(es)
         self.cap.setExtraSelections(sels)
+
+    def _load_caption_knowledge_base(self):
+        if self._caption_knowledge_base is None:
+            from library.anima_prompt import load_knowledge_base
+
+            self._caption_knowledge_base = load_knowledge_base(allow_missing=True)
+        return self._caption_knowledge_base
+
+    def _apply_caption_order_correction(self) -> None:
+        cp = self._current_caption_path
+        if cp is None:
+            return
+        old_text = self.cap.toPlainText()
+        if not old_text.strip():
+            QMessageBox.information(self, "", t("caption_order_correct_empty"))
+            return
+        try:
+            from library.anima_prompt import correct_prompt
+
+            result = correct_prompt(
+                old_text,
+                profile="caption",
+                knowledge_base=self._load_caption_knowledge_base(),
+            )
+        except Exception as e:
+            QMessageBox.warning(
+                self, t("error"), t("caption_order_correct_failed", err=str(e))
+            )
+            return
+        if not result.changed:
+            QMessageBox.information(self, "", t("caption_order_correct_no_change"))
+            return
+        try:
+            _append_history(cp, old_text, reason="order_correction")
+        except OSError as e:
+            QMessageBox.warning(self, t("error"), t("caption_save_failed", err=str(e)))
+            return
+        self._set_caption_text(result.text)
+        self._refresh_buttons()
+        self._refresh_inline_diff()
 
     def _save(self) -> None:
         cp = self._current_caption_path
