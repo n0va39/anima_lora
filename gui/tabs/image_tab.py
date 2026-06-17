@@ -84,7 +84,12 @@ from library.datasets.curation_actions import (
     rel_key,
     save_curation_decisions,
 )
-from library.preprocess.resize_preview import compute_resize_preview
+from library.datasets.buckets import buckets_for_edges
+from library.preprocess.resize_preview import (
+    compute_resize_preview,
+    format_bucket_resos,
+    normalize_target_res,
+)
 
 # Stdio protocol sentinels of the resident autotag worker (kept in sync with
 # ``scripts/anima_tagger/autotag_server.py``). Hardcoded rather than imported
@@ -234,10 +239,21 @@ def _load_resize_preview_target_res():
     return data.get("target_res")
 
 
-def _compose_resize_preview_overlay(source: QPixmap, target_res) -> QPixmap:
+def _compose_resize_preview_overlay(
+    source: QPixmap,
+    target_res,
+    crop_anchor=None,
+    bucket_resos=None,
+    crop_margins=None,
+) -> QPixmap:
     try:
         preview = compute_resize_preview(
-            source.width(), source.height(), target_res
+            source.width(),
+            source.height(),
+            target_res,
+            crop_anchor=crop_anchor,
+            bucket_resos=bucket_resos,
+            crop_margins=crop_margins,
         )
     except (KeyError, TypeError, ValueError):
         return source
@@ -771,6 +787,15 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self.resize_preview_cb.setEnabled(False)
         self.resize_preview_cb.toggled.connect(self._on_overlay_toggled)
         img_head.addWidget(self.resize_preview_cb)
+        self.resize_preview_bucket_combo = QComboBox()
+        self.resize_preview_bucket_combo.setToolTip(
+            t("dataset_resize_preview_bucket_tooltip")
+        )
+        self.resize_preview_bucket_combo.setEnabled(False)
+        self.resize_preview_bucket_combo.currentIndexChanged.connect(
+            self._on_overlay_toggled
+        )
+        img_head.addWidget(self.resize_preview_bucket_combo)
         self.preprocess_use_btn = QPushButton(t("dataset_preprocess_use_short"))
         self.preprocess_use_btn.setToolTip(t("dataset_preprocess_use_tooltip"))
         self.preprocess_use_btn.clicked.connect(
@@ -1692,6 +1717,8 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._overlay_pm = None  # compose lazily in _apply_image_view
         self.overlay_cb.setEnabled(self._mask_path is not None)
         self.resize_preview_cb.setEnabled(source is not None)
+        self.resize_preview_bucket_combo.setEnabled(source is not None)
+        self._refresh_resize_preview_buckets()
         self._apply_image_view()
 
     def _apply_image_view(self) -> None:
@@ -1703,13 +1730,23 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             if self._overlay_pm is None:
                 self._overlay_pm = _compose_mask_overlay(
                     self._source_pm, self._mask_path
-                )
+            )
             pm = self._overlay_pm
         if self.resize_preview_cb.isChecked():
-            pm = _compose_resize_preview_overlay(pm, self._resize_preview_target_res())
+            target_res, crop_anchor, bucket_resos, crop_margins = (
+                self._resize_preview_config()
+            )
+            pm = _compose_resize_preview_overlay(
+                pm,
+                target_res,
+                crop_anchor=crop_anchor,
+                bucket_resos=bucket_resos,
+                crop_margins=crop_margins,
+            )
         self.img.set_source(pm)
 
     def _on_overlay_toggled(self, _checked: bool) -> None:
+        self._refresh_resize_preview_buckets()
         self._apply_image_view()
 
     def _resize_preview_target_res(self):
@@ -1721,6 +1758,49 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             except (AttributeError, TypeError, ValueError):
                 pass
         return _load_resize_preview_target_res()
+
+    def _resize_preview_config(self):
+        target_res = self._resize_preview_target_res()
+        crop_anchor = None
+        bucket_resos = None
+        crop_margins = None
+        tab = self._preprocess_tab
+        anchor_widget = getattr(tab, "resize_crop_anchor_widget", None)
+        if anchor_widget is not None:
+            crop_anchor = anchor_widget.value()
+        widget = getattr(tab, "target_res_widget", None)
+        if widget is not None:
+            try:
+                bucket_resos = widget.bucket_resos()
+            except (AttributeError, TypeError, ValueError):
+                bucket_resos = None
+        if tab is not None and hasattr(tab, "_resize_crop_margins"):
+            crop_margins = tab._resize_crop_margins()
+        selected = self.resize_preview_bucket_combo.currentData()
+        if selected:
+            bucket_resos = [selected]
+        return target_res, crop_anchor, bucket_resos, crop_margins
+
+    def _refresh_resize_preview_buckets(self) -> None:
+        combo = self.resize_preview_bucket_combo
+        current = combo.currentData()
+        combo.blockSignals(True)
+        try:
+            combo.clear()
+            combo.addItem(t("dataset_resize_preview_bucket_auto"), "")
+            try:
+                tiers = normalize_target_res(self._resize_preview_target_res())
+                buckets = buckets_for_edges(tiers)
+            except (TypeError, ValueError, KeyError):
+                buckets = []
+            for label in dict.fromkeys(format_bucket_resos(buckets)):
+                width, height = label.split("x", 1)
+                ratio = int(width) / int(height)
+                combo.addItem(f"{label} ({ratio:.2f})", label)
+            idx = combo.findData(current)
+            combo.setCurrentIndex(idx if idx >= 0 else 0)
+        finally:
+            combo.blockSignals(False)
 
     def _current_index(self) -> int:
         """Index into ``self._images`` of the currently selected image.
@@ -2040,6 +2120,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._overlay_pm = None
         self.overlay_cb.setEnabled(False)
         self.resize_preview_cb.setEnabled(False)
+        self.resize_preview_bucket_combo.setEnabled(False)
         self.img.clear()
         self._refresh_image_meta(None)
         self._refresh_preprocess_controls()
