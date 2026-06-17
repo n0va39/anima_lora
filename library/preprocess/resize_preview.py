@@ -153,19 +153,30 @@ def select_resize_bucket(
         edge = choose_edge(width, height, tiers)
         return edge, _nearest_aspect_bucket(width, height, buckets_for_edges([edge]))
 
-    best: tuple[float, int, tuple[int, int]] | None = None
-    for edge in tiers:
-        buckets = [bucket for bucket in buckets_for_edges([edge]) if bucket in allowed]
-        for bucket in buckets:
-            scale = _cover_scale(width, height, bucket[0], bucket[1])
-            cost = abs(math.log(scale))
-            candidate = (cost, edge, bucket)
-            if best is None or candidate < best:
-                best = candidate
-    if best is None:
+    edge = choose_edge(width, height, tiers)
+    buckets = [bucket for bucket in buckets_for_edges([edge]) if bucket in allowed]
+    if buckets:
+        return edge, _nearest_aspect_bucket(width, height, buckets)
+
+    fallback: list[tuple[int, tuple[int, int]]] = []
+    for candidate_edge in tiers:
+        fallback.extend(
+            (candidate_edge, bucket)
+            for bucket in buckets_for_edges([candidate_edge])
+            if bucket in allowed
+        )
+    if not fallback:
         raise ValueError("resize_bucket_resos has no buckets for selected target_res")
-    _, edge, bucket = best
-    return edge, bucket
+    ar = width / height
+    return min(
+        fallback,
+        key=lambda item: (
+            abs(item[1][0] / item[1][1] - ar),
+            abs(math.log(_cover_scale(width, height, item[1][0], item[1][1]))),
+            item[0],
+            item[1],
+        ),
+    )
 
 
 def compute_resize_preview(

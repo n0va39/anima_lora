@@ -6,6 +6,7 @@ from library.preprocess.resize_preview import (
     normalize_target_res,
     normalize_crop_margins,
     parse_bucket_resos,
+    select_resize_bucket,
 )
 
 
@@ -60,6 +61,15 @@ def test_resize_preview_can_force_bucket_resolution():
 
     assert preview.bucket_size == (576, 1344)
     assert preview.target_edge == 896
+
+
+def test_resize_bucket_filter_keeps_nearest_aspect_selection():
+    buckets = [f"{width}x{height}" for width, height in buckets_for_edges([1024])]
+
+    edge, bucket = select_resize_bucket(1440, 2560, 1024, buckets)
+
+    assert edge == 1024
+    assert bucket == (768, 1344)
 
 
 def test_parse_bucket_resos_accepts_gui_and_cli_shapes():

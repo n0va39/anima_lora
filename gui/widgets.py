@@ -102,7 +102,9 @@ def _target_res_buckets() -> dict[int, tuple[tuple[int, int], ...]]:
     from library.datasets.buckets import CONSTANT_TOKEN_BUCKETS_BY_EDGE
 
     return {
-        edge: tuple(CONSTANT_TOKEN_BUCKETS_BY_EDGE[edge])
+        edge: tuple(
+            sorted(CONSTANT_TOKEN_BUCKETS_BY_EDGE[edge], key=lambda size: size[0] / size[1])
+        )
         for edge in sorted(CONSTANT_TOKEN_BUCKETS_BY_EDGE)
     }
 

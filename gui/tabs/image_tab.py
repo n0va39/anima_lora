@@ -109,8 +109,8 @@ _AUTOTAG_GPU_WATCH_MS = 700
 _MASK_OVERLAY_COLOR_OPAQUE = QColor(255, 60, 60, 255)
 _MASK_OVERLAY_OPACITY = 0.55
 _RESIZE_PREVIEW_COLOR = QColor(40, 220, 120, 255)
+_RESIZE_MARGIN_COLOR = QColor(255, 70, 60, 255)
 _RESIZE_PREVIEW_SHADE = QColor(0, 0, 0, 72)
-_RESIZE_PREVIEW_LABEL_BG = QColor(0, 0, 0, 180)
 
 # Text prefixes for GUI preprocess decisions and images marked for moving.
 _USE_MARK_PREFIX = "■ "
@@ -263,6 +263,17 @@ def _compose_resize_preview_overlay(
     top = max(0, min(source.height(), round(rect.top)))
     right = max(left, min(source.width(), round(rect.left + rect.width)))
     bottom = max(top, min(source.height(), round(rect.top + rect.height)))
+    margin = preview.margin_rect
+    margin_left = max(0, min(source.width(), round(margin.left)))
+    margin_top = max(0, min(source.height(), round(margin.top)))
+    margin_right = max(
+        margin_left,
+        min(source.width(), round(margin.left + margin.width)),
+    )
+    margin_bottom = max(
+        margin_top,
+        min(source.height(), round(margin.top + margin.height)),
+    )
 
     result = QPixmap(source)
     painter = QPainter(result)
@@ -286,26 +297,24 @@ def _compose_resize_preview_overlay(
         )
 
         pen_width = max(2, round(min(source.width(), source.height()) * 0.004))
+        if any(value > 0 for value in preview.crop_margins.values()):
+            painter.setPen(QPen(_RESIZE_MARGIN_COLOR, pen_width, Qt.SolidLine))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRect(
+                QRect(
+                    margin_left,
+                    margin_top,
+                    margin_right - margin_left,
+                    margin_bottom - margin_top,
+                ).adjusted(1, 1, -1, -1)
+            )
+
         painter.setPen(QPen(_RESIZE_PREVIEW_COLOR, pen_width, Qt.SolidLine))
         painter.setBrush(Qt.NoBrush)
         painter.drawRect(
             QRect(left, top, right - left, bottom - top).adjusted(1, 1, -1, -1)
         )
 
-        bucket_w, bucket_h = preview.bucket_size
-        label = t("dataset_resize_preview_label").format(
-            width=bucket_w, height=bucket_h, edge=preview.target_edge
-        )
-        metrics = painter.fontMetrics()
-        label_w = metrics.horizontalAdvance(label) + 12
-        label_h = metrics.height() + 8
-        label_x = max(6, min(left + 6, source.width() - label_w - 6))
-        label_y = max(6, min(top + 6, source.height() - label_h - 6))
-        label_rect = QRect(label_x, label_y, label_w, label_h)
-        painter.setPen(Qt.NoPen)
-        painter.fillRect(label_rect, _RESIZE_PREVIEW_LABEL_BG)
-        painter.setPen(_RESIZE_PREVIEW_COLOR)
-        painter.drawText(label_rect, Qt.AlignCenter, label)
     finally:
         painter.end()
     return result
@@ -683,6 +692,8 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             _app.aboutToQuit.connect(self._kill_tagger_worker)
         self._search_text: str = ""
         self._sort_desc: bool = False
+        self._group_sort_mode: str = "name"
+        self._group_sort_desc: bool = False
         # Group-first: float every similarity group to the top, flattened across
         # folders. Off = per-folder tree. See _rebuild_tree_group_first.
         self._group_first: bool = False
@@ -760,6 +771,20 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self.group_first_btn.setToolTip(t("dataset_group_first_tooltip"))
         self.group_first_btn.clicked.connect(self._toggle_group_first)
         search_row.addWidget(self.group_first_btn)
+        self.group_sort_combo = QComboBox()
+        self.group_sort_combo.setToolTip(t("dataset_group_sort_tooltip"))
+        self.group_sort_combo.addItem(t("dataset_group_sort_name"), "name")
+        self.group_sort_combo.addItem(t("dataset_group_sort_name_desc"), "name_desc")
+        self.group_sort_combo.addItem(t("dataset_group_sort_size"), "size")
+        self.group_sort_combo.addItem(t("dataset_group_sort_size_desc"), "size_desc")
+        self.group_sort_combo.addItem(
+            t("dataset_group_sort_resolution"), "resolution"
+        )
+        self.group_sort_combo.addItem(
+            t("dataset_group_sort_resolution_desc"), "resolution_desc"
+        )
+        self.group_sort_combo.currentIndexChanged.connect(self._on_group_sort_changed)
+        search_row.addWidget(self.group_sort_combo)
         ll.addLayout(search_row)
 
         self.tree = QTreeWidget()
@@ -1289,6 +1314,23 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             return p.stem
         return f"{rel.parent.as_posix()}/{p.stem}"
 
+    def _group_sort_key(self, item: tuple[int, Path]):
+        idx, path = item
+        label = self._display_label(path).lower()
+        if self._group_sort_mode == "size":
+            try:
+                file_size = path.stat().st_size
+            except OSError:
+                file_size = 0
+            return (file_size, label, idx)
+        if self._group_sort_mode == "resolution":
+            width, height = self._image_size(path)
+            return (width * height, width, height, label, idx)
+        return (label, idx)
+
+    def _sort_group_members(self, members: list[tuple[int, Path]]) -> list[tuple[int, Path]]:
+        return sorted(members, key=self._group_sort_key, reverse=self._group_sort_desc)
+
     def _apply_filter_and_sort(self, *, prev_stem: str | None = None) -> bool:
         """Rebuild the visible tree from ``_all_images`` using the current
         search text and sort direction.
@@ -1376,6 +1418,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         folder_items: dict[Path, QTreeWidgetItem] = {}
         group_nodes: dict[tuple[Path, int], QTreeWidgetItem] = {}
         group_counts: dict[tuple[Path, int], int] = {}
+        group_members: dict[tuple[Path, int], list[tuple[int, Path]]] = {}
         for idx, p in enumerate(visible):
             rel: Path
             if self._current_dir is None:
@@ -1389,13 +1432,19 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             gi = stem_to_group.get(p.stem)
             if gi is not None:
                 key = (rel.parent, gi)
-                parent = self._ensure_group_node(folder, key, group_nodes)
+                self._ensure_group_node(folder, key, group_nodes)
                 group_counts[key] = group_counts.get(key, 0) + 1
+                group_members.setdefault(key, []).append((idx, p))
             else:
-                parent = folder
-            leaf = QTreeWidgetItem(parent, [p.stem])
-            leaf.setData(0, _TREE_BASE_TEXT_ROLE, p.stem)
-            self._tree_item_to_index[leaf] = idx
+                leaf = QTreeWidgetItem(folder, [p.stem])
+                leaf.setData(0, _TREE_BASE_TEXT_ROLE, p.stem)
+                self._tree_item_to_index[leaf] = idx
+        for key, members in group_members.items():
+            node = group_nodes[key]
+            for idx, p in self._sort_group_members(members):
+                leaf = QTreeWidgetItem(node, [p.stem])
+                leaf.setData(0, _TREE_BASE_TEXT_ROLE, p.stem)
+                self._tree_item_to_index[leaf] = idx
         # Label group nodes once their per-folder visible member count is known.
         for key, node in group_nodes.items():
             node.setText(
@@ -1431,7 +1480,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             font = node.font(0)
             font.setBold(True)
             node.setFont(0, font)
-            for idx, p in members:
+            for idx, p in self._sort_group_members(members):
                 label = self._display_label(p)
                 leaf = QTreeWidgetItem(node, [label])
                 leaf.setData(0, _TREE_BASE_TEXT_ROLE, label)
@@ -1558,6 +1607,12 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self.group_first_btn.setText(
             t("dataset_view_group") if self._group_first else t("dataset_view_tree")
         )
+        self._apply_filter_and_sort()
+
+    def _on_group_sort_changed(self) -> None:
+        raw = str(self.group_sort_combo.currentData() or "name")
+        self._group_sort_desc = raw.endswith("_desc")
+        self._group_sort_mode = raw.removesuffix("_desc")
         self._apply_filter_and_sort()
 
     def _reload_current_dir(self) -> None:
@@ -1748,6 +1803,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
     def _on_overlay_toggled(self, _checked: bool) -> None:
         self._refresh_resize_preview_buckets()
         self._apply_image_view()
+        self._refresh_image_meta(self._current_image_path())
 
     def _resize_preview_target_res(self):
         tab = self._preprocess_tab
@@ -1848,6 +1904,30 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         size = QImageReader(str(path)).size()
         return (max(0, size.width()), max(0, size.height()))
 
+    def _resize_preview_meta(self, width: int, height: int) -> str:
+        if not self.resize_preview_cb.isChecked():
+            return ""
+        try:
+            target_res, crop_anchor, bucket_resos, crop_margins = (
+                self._resize_preview_config()
+            )
+            preview = compute_resize_preview(
+                width,
+                height,
+                target_res,
+                crop_anchor=crop_anchor,
+                bucket_resos=bucket_resos,
+                crop_margins=crop_margins,
+            )
+        except (KeyError, TypeError, ValueError):
+            return ""
+        bucket_w, bucket_h = preview.bucket_size
+        return t("dataset_image_meta_resize").format(
+            width=bucket_w,
+            height=bucket_h,
+            edge=preview.target_edge,
+        )
+
     def _refresh_image_meta(self, path: Path | None) -> None:
         if path is None:
             self.image_meta.setText(t("dataset_image_meta_empty"))
@@ -1858,15 +1938,17 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         except OSError:
             file_size = 0
         fmt = path.suffix.lstrip(".").upper() or "?"
-        self.image_meta.setText(
-            t(
-                "dataset_image_meta",
-                width=width,
-                height=height,
-                size=_format_file_size(file_size),
-                fmt=escape(fmt),
-            )
+        meta = t(
+            "dataset_image_meta",
+            width=width,
+            height=height,
+            size=_format_file_size(file_size),
+            fmt=escape(fmt),
         )
+        resize_meta = self._resize_preview_meta(width, height)
+        if resize_meta:
+            meta = f"{meta} · {resize_meta}"
+        self.image_meta.setText(meta)
 
     def _current_image_path(self) -> Path | None:
         idx = self._current_index()
