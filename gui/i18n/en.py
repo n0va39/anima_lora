@@ -441,6 +441,21 @@ STRINGS: dict[str, str] = {
     ),
     "caption_autotag_error": "Autotag failed: {err}",
     "caption_autotag_empty": "The tagger returned no tags for this image.",
+    "caption_correct": "Correct order",
+    "caption_correct_tooltip": (
+        "Use danbooru_tags_classified.csv to reorder this caption into the "
+        "recommended ANIMA order, optionally inserting @no-artist."
+    ),
+    "caption_correct_visible": "Correct current list",
+    "caption_correct_visible_confirm": "Correct {n} caption(s) in the current list?",
+    "caption_correct_visible_done": "Corrected {n} caption(s).",
+    "caption_correct_visible_failed": "Corrected {n} caption(s).\n\nFailed:\n{err}",
+    "caption_correct_no_change": "No caption changes to apply.",
+    "caption_correct_db_missing": (
+        "danbooru_tags_classified.csv was not found.\n\n"
+        "Place it in one of these locations, or set ANIMA_DANBOORU_TAGS_CSV:\n{paths}"
+    ),
+    "caption_correct_db_failed": "Failed to load tag DB: {err}",
     "caption_versions": "Versions…",
     "caption_dirty_marker": " *",
     "caption_diff_stats": "(+{add} / −{rem})",
@@ -477,6 +492,16 @@ STRINGS: dict[str, str] = {
     "settings_autotag_confidence_tooltip": (
         "Extra probability floor (0–1) applied on top of the tagger's per-tag "
         "thresholds. Higher = fewer, more confident tags. Default 0.50."
+    ),
+    "settings_caption_insert_no_artist": "Insert @no-artist during caption correction",
+    "settings_caption_insert_no_artist_tooltip": (
+        "If the corrected caption has no artist tag, insert @no-artist at the "
+        "artist position. It only anchors caption shuffle and is stripped before tokenization."
+    ),
+    "settings_caption_validate_artist_tags": "Validate artist tags with DB",
+    "settings_caption_validate_artist_tags_tooltip": (
+        "When enabled, only @tags classified as artists in danbooru_tags_classified.csv "
+        "move to the artist position. When disabled, any @tag is treated as an artist tag."
     ),
     "settings_group_match_frac": "Grouping tightness:",
     "settings_group_match_frac_tooltip": (
