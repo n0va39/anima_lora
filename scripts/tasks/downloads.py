@@ -26,8 +26,7 @@ from ._common import ROOT, run
 
 DANBOORU_TAGS_PATH = ROOT / "models" / "danbooru_tags_classified.csv"
 DANBOORU_TAGS_URLS = (
-    "https://github.com/sorryhyun/anima_lora/releases/latest/download/danbooru_tags_classified.csv",
-    "https://raw.githubusercontent.com/sorryhyun/anima_lora/main/models/danbooru_tags_classified.csv",
+    "https://raw.githubusercontent.com/Localsmile/danbooru_KR_wiki_tag_search/main/danbooru_tags_classified.csv",
 )
 
 

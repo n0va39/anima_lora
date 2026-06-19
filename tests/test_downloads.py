@@ -5,6 +5,12 @@ from io import BytesIO
 from scripts.tasks import downloads
 
 
+def test_danbooru_tags_download_url_points_to_source_repo():
+    assert downloads.DANBOORU_TAGS_URLS == (
+        "https://raw.githubusercontent.com/Localsmile/danbooru_KR_wiki_tag_search/main/danbooru_tags_classified.csv",
+    )
+
+
 class _FakeResponse:
     def __init__(self, payload: bytes):
         self._payload = payload
