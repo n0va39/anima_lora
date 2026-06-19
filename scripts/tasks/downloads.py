@@ -137,7 +137,8 @@ def cmd_download_danbooru_tags(_extra):
                 tmp.unlink()
             print(f"  ✗ failed: {last_error}")
     raise SystemExit(
-        "failed to download danbooru_tags_classified.csv from sorryhyun/anima_lora"
+        "failed to download danbooru_tags_classified.csv from "
+        "Localsmile/danbooru_KR_wiki_tag_search"
     )
 
 

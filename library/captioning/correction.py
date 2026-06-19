@@ -35,9 +35,6 @@ _ANIMA_PERSON_TAGS = frozenset(
     {
         "solo",
         "no humans",
-        "multiple girls",
-        "multiple boys",
-        "multiple others",
     }
 )
 
@@ -230,6 +227,8 @@ def _kind_from_category(category_path: str, numeric_category: str) -> str:
     numeric_kind = _DANBOORU_NUMERIC_CATEGORIES.get(numeric_category.strip())
     if numeric_kind is not None:
         return numeric_kind
+    # Localsmile's fallback category path is Korean; numeric Danbooru category is
+    # preferred above so this only helps non-standard rows.
     if category_path:
         root = category_path.split(">")[0].strip()
         if root == "작가":

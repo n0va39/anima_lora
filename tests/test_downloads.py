@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import urllib.error
 from io import BytesIO
+
+import pytest
 
 from scripts.tasks import downloads
 
@@ -60,3 +63,21 @@ def test_download_danbooru_tags_skips_existing_without_force(tmp_path, monkeypat
 
     assert not called
     assert dest.read_text(encoding="utf-8") == "existing"
+
+
+def test_download_danbooru_tags_failure_names_source_repo(tmp_path, monkeypatch):
+    dest = tmp_path / "models" / "danbooru_tags_classified.csv"
+    monkeypatch.setattr(downloads, "DANBOORU_TAGS_PATH", dest)
+    monkeypatch.setattr(downloads, "DANBOORU_TAGS_URLS", ("https://example.test/tags.csv",))
+    monkeypatch.setattr(
+        downloads.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            urllib.error.URLError("nope")
+        ),
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        downloads.cmd_download_danbooru_tags([])
+
+    assert "Localsmile/danbooru_KR_wiki_tag_search" in str(exc.value)

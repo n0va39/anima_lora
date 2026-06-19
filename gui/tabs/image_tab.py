@@ -708,6 +708,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
         self._gpu_watch_timer.timeout.connect(self._autotag_gpu_watch_tick)
         self._caption_kb: TagKnowledgeBase | None = None
         self._caption_kb_source: Path | None = None
+        self._caption_kb_mtime: float | None = None
         # Make sure the resident worker (and its VRAM) dies with the app.
         _app = QApplication.instance()
         if _app is not None:
@@ -906,6 +907,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             t("caption_correct_tooltip"),
             self._correct_current_caption,
             [(t("caption_correct_visible"), self._correct_visible_captions)],
+            variant="info",
         )
         self.versions_btn = QPushButton(t("caption_versions"))
         self.versions_btn.clicked.connect(self._open_versions)
@@ -977,7 +979,7 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
             self._load_dir(self.dc.currentText())
 
     def _make_button_with_menu(
-        self, text: str, tooltip: str, clicked_cb, actions
+        self, text: str, tooltip: str, clicked_cb, actions, *, variant: str | None = None
     ) -> QWidget:
         host = QWidget()
         row = QHBoxLayout(host)
@@ -986,6 +988,8 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
 
         main_btn = QPushButton(text)
         main_btn.setToolTip(tooltip)
+        if variant is not None:
+            apply_variant(main_btn, variant)
         main_btn.clicked.connect(lambda _checked=False: clicked_cb())
         row.addWidget(main_btn)
 
@@ -1252,17 +1256,30 @@ class ImageViewerTab(DaemonJobMixin, LazyTabMixin, QWidget):
                 t("caption_correct_db_missing", paths=candidates),
             )
             return None
-        if self._caption_kb is not None and self._caption_kb_source == csv_path:
+        try:
+            mtime = csv_path.stat().st_mtime
+        except OSError as exc:
+            QMessageBox.warning(
+                self, t("error"), t("caption_correct_db_failed", err=str(exc))
+            )
+            return None
+        if (
+            self._caption_kb is not None
+            and self._caption_kb_source == csv_path
+            and self._caption_kb_mtime == mtime
+        ):
             return self._caption_kb
         try:
             self._caption_kb = load_tag_knowledge_base(csv_path)
             self._caption_kb_source = csv_path
+            self._caption_kb_mtime = mtime
         except (OSError, ValueError) as exc:
             QMessageBox.warning(
                 self, t("error"), t("caption_correct_db_failed", err=str(exc))
             )
             self._caption_kb = None
             self._caption_kb_source = None
+            self._caption_kb_mtime = None
         return self._caption_kb
 
     def _correct_current_caption(self) -> None:
