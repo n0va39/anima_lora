@@ -453,7 +453,7 @@ STRINGS: dict[str, str] = {
     "caption_correct_no_change": "No caption changes to apply.",
     "caption_correct_db_missing": (
         "danbooru_tags_classified.csv was not found.\n\n"
-        "Place it in one of these locations, or set ANIMA_DANBOORU_TAGS_CSV:\n{paths}"
+        "Download the Danbooru tag DB from the Models dialog, or place it here:\n{paths}"
     ),
     "caption_correct_db_failed": "Failed to load tag DB: {err}",
     "caption_versions": "Versions…",
@@ -576,8 +576,8 @@ STRINGS: dict[str, str] = {
     # Models dialog
     "models_title": "Download Models",
     "models_intro": "Pick a model group below or use 'Download all' for the standard set "
-    "(Anima + SAM3 + MIT + PE). Files are saved under models/.",
-    "models_download_all": "Download all (Anima + SAM3 + MIT + PE)",
+    "(Anima + SAM3 + MIT + PE + tag DB). Files are saved under models/.",
+    "models_download_all": "Download all (Anima + SAM3 + MIT + PE + tag DB)",
     "models_download": "Download",
     "models_redownload": "Re-download",
     "models_installed": "✓ Installed",
@@ -590,6 +590,7 @@ STRINGS: dict[str, str] = {
     "model_sam3": "SAM3 — text-bubble masking",
     "model_mit": "MIT — manga text masking",
     "model_pe": "PE-Core-L14-336 — vision encoder (CMMD validation / DCW)",
+    "model_danbooru_tags": "Danbooru tag DB — caption order correction",
     # HuggingFace authentication (Models dialog)
     "models_hf_token_placeholder": "Paste your HuggingFace token (hf_…)",
     "models_hf_authenticate": "Authenticate",

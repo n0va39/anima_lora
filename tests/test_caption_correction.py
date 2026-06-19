@@ -5,6 +5,8 @@ from pathlib import Path
 from library.captioning.correction import (
     CaptionCorrectionOptions,
     correct_caption,
+    default_tag_csv_candidates,
+    find_tag_csv,
     load_tag_knowledge_base,
 )
 
@@ -92,3 +94,19 @@ def test_numeric_category_wins_over_description_prefix(tmp_path):
     assert result.text == (
         "1girl, hatsune miku, vocaloid, @no-artist, copyright notice"
     )
+
+
+def test_default_tag_csv_prefers_models_dir_over_env(tmp_path, monkeypatch):
+    root = tmp_path / "repo"
+    model_csv = root / "models" / "danbooru_tags_classified.csv"
+    env_csv = tmp_path / "env.csv"
+    model_csv.parent.mkdir(parents=True)
+    model_csv.write_text("name,category,post_count,description\n", encoding="utf-8")
+    env_csv.write_text("name,category,post_count,description\n", encoding="utf-8")
+    monkeypatch.setenv("ANIMA_DANBOORU_TAGS_CSV", str(env_csv))
+
+    candidates = default_tag_csv_candidates(root)
+
+    assert candidates[0] == model_csv
+    assert root.parent / "danbooru_tags_classified.csv" not in candidates
+    assert find_tag_csv(root) == model_csv

@@ -441,7 +441,7 @@ STRINGS: dict[str, str] = {
     "caption_correct_no_change": "교정할 변경사항이 없습니다.",
     "caption_correct_db_missing": (
         "danbooru_tags_classified.csv를 찾을 수 없습니다.\n\n"
-        "다음 위치 중 하나에 배치하거나 ANIMA_DANBOORU_TAGS_CSV 환경변수로 지정하세요:\n{paths}"
+        "모델 창에서 Danbooru 태그 DB를 다운로드하거나 다음 위치에 배치하세요:\n{paths}"
     ),
     "caption_correct_db_failed": "태그 DB 로드 실패: {err}",
     "caption_versions": "이력…",
@@ -564,8 +564,8 @@ STRINGS: dict[str, str] = {
     # Models dialog
     "models_title": "모델 다운로드",
     "models_intro": "아래에서 모델 그룹을 선택하거나 '전체 다운로드'로 표준 세트 "
-    "(Anima + SAM3 + MIT + PE)를 받으세요. 파일은 models/ 아래에 저장됩니다.",
-    "models_download_all": "전체 다운로드 (Anima + SAM3 + MIT + PE)",
+    "(Anima + SAM3 + MIT + PE + 태그 DB)를 받으세요. 파일은 models/ 아래에 저장됩니다.",
+    "models_download_all": "전체 다운로드 (Anima + SAM3 + MIT + PE + 태그 DB)",
     "models_download": "다운로드",
     "models_redownload": "재다운로드",
     "models_installed": "✓ 설치됨",
@@ -574,6 +574,7 @@ STRINGS: dict[str, str] = {
     "model_sam3": "SAM3 — 말풍선 마스킹",
     "model_mit": "MIT — 만화 텍스트 마스킹",
     "model_pe": "PE-Core-L14-336 — 비전 인코더 (CMMD 검증 / DCW)",
+    "model_danbooru_tags": "Danbooru 태그 DB — 캡션 순서 교정",
     # HuggingFace 인증 (모델 다이얼로그)
     "models_hf_token_placeholder": "HuggingFace 토큰을 붙여넣으세요 (hf_…)",
     "models_hf_authenticate": "인증",

@@ -388,7 +388,7 @@ STRINGS: dict[str, str] = {
     "caption_correct_no_change": "没有需要校正的更改。",
     "caption_correct_db_missing": (
         "找不到 danbooru_tags_classified.csv。\n\n"
-        "请将它放到以下任一位置，或设置 ANIMA_DANBOORU_TAGS_CSV:\n{paths}"
+        "请在模型窗口下载 Danbooru 标签 DB，或将它放到以下位置:\n{paths}"
     ),
     "caption_correct_db_failed": "标签 DB 加载失败: {err}",
     "caption_versions": "历史……",
@@ -506,8 +506,8 @@ STRINGS: dict[str, str] = {
     # Models dialog
     "models_title": "下载模型",
     "models_intro": "在下方选择模型组,或使用「全部下载」获取标准套件 "
-    "(Anima + SAM3 + MIT + PE)。文件保存于 models/ 下。",
-    "models_download_all": "全部下载 (Anima + SAM3 + MIT + PE)",
+    "(Anima + SAM3 + MIT + PE + 标签 DB)。文件保存于 models/ 下。",
+    "models_download_all": "全部下载 (Anima + SAM3 + MIT + PE + 标签 DB)",
     "models_download": "下载",
     "models_redownload": "重新下载",
     "models_installed": "✓ 已安装",
@@ -516,6 +516,7 @@ STRINGS: dict[str, str] = {
     "model_sam3": "SAM3 — 对话气泡蒙版",
     "model_mit": "MIT — 漫画文字蒙版",
     "model_pe": "PE-Core-L14-336 — 视觉编码器 (CMMD 验证 / DCW)",
+    "model_danbooru_tags": "Danbooru 标签 DB — 标注顺序校正",
     # HuggingFace 认证（模型对话框）
     "models_hf_token_placeholder": "粘贴你的 HuggingFace 令牌 (hf_…)",
     "models_hf_authenticate": "认证",

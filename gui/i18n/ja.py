@@ -403,7 +403,7 @@ STRINGS: dict[str, str] = {
     "caption_correct_no_change": "補正する変更はありません。",
     "caption_correct_db_missing": (
         "danbooru_tags_classified.csv が見つかりません。\n\n"
-        "次の場所のいずれかに置くか、ANIMA_DANBOORU_TAGS_CSV を設定してください:\n{paths}"
+        "モデル画面から Danbooru タグ DB をダウンロードするか、次の場所に置いてください:\n{paths}"
     ),
     "caption_correct_db_failed": "タグ DB の読み込みに失敗: {err}",
     "caption_versions": "履歴…",
@@ -525,8 +525,8 @@ STRINGS: dict[str, str] = {
     # Models dialog
     "models_title": "モデルのダウンロード",
     "models_intro": "以下からモデルグループを選択するか、「すべてダウンロード」で標準セット "
-    "(Anima + SAM3 + MIT + PE) をダウンロードします。ファイルは models/ に保存されます。",
-    "models_download_all": "すべてダウンロード (Anima + SAM3 + MIT + PE)",
+    "(Anima + SAM3 + MIT + PE + タグ DB) をダウンロードします。ファイルは models/ に保存されます。",
+    "models_download_all": "すべてダウンロード (Anima + SAM3 + MIT + PE + タグ DB)",
     "models_download": "ダウンロード",
     "models_redownload": "再ダウンロード",
     "models_installed": "✓ インストール済み",
@@ -535,6 +535,7 @@ STRINGS: dict[str, str] = {
     "model_sam3": "SAM3 — テキストバブルマスキング",
     "model_mit": "MIT — 漫画テキストマスキング",
     "model_pe": "PE-Core-L14-336 — ビジョンエンコーダー (CMMD 検証 / DCW)",
+    "model_danbooru_tags": "Danbooru タグ DB — キャプション順序補正",
     # HuggingFace 認証 (モデルダイアログ)
     "models_hf_token_placeholder": "HuggingFace トークンを貼り付けてください (hf_…)",
     "models_hf_authenticate": "認証",

@@ -85,24 +85,12 @@ def default_tag_csv_candidates(root: Path | None = None) -> list[Path]:
     """Likely local CSV locations, in priority order."""
 
     paths: list[Path] = []
+    if root is not None:
+        paths.append(root / "models" / "danbooru_tags_classified.csv")
+    paths.append(_REPO_ROOT / "models" / "danbooru_tags_classified.csv")
     env = os.environ.get("ANIMA_DANBOORU_TAGS_CSV")
     if env:
         paths.append(Path(env))
-    if root is not None:
-        paths.extend(
-            [
-                root / "models" / "danbooru_tags_classified.csv",
-                root / "danbooru_tags_classified.csv",
-                root.parent / "danbooru_tags_classified.csv",
-            ]
-        )
-    paths.extend(
-        [
-            _REPO_ROOT / "models" / "danbooru_tags_classified.csv",
-            _REPO_ROOT / "danbooru_tags_classified.csv",
-            _REPO_ROOT.parent / "danbooru_tags_classified.csv",
-        ]
-    )
 
     out: list[Path] = []
     seen: set[Path] = set()
