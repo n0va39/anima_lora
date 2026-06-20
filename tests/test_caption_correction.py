@@ -124,7 +124,7 @@ def test_trigger_preserves_underscores_when_inserted(tmp_path):
     )
 
 
-def test_existing_general_trigger_uses_no_artist_anchor(tmp_path):
+def test_existing_general_trigger_moves_to_artist_slot(tmp_path):
     kb = load_tag_knowledge_base(_csv(tmp_path / "tags.csv"))
     result = correct_caption(
         "long hair, vocaloid, dataset trigger, hatsune miku, 1girl",
@@ -136,15 +136,33 @@ def test_existing_general_trigger_uses_no_artist_anchor(tmp_path):
     )
 
     assert result.text == (
-        "1girl, hatsune miku, vocaloid, @no-artist, long hair, dataset trigger"
+        "1girl, hatsune miku, vocaloid, @dataset_trigger, long hair"
     )
-    assert result.inserted_no_artist
+    assert not result.inserted_no_artist
 
 
 def test_front_trigger_allows_no_artist_when_no_artist_marker(tmp_path):
     kb = load_tag_knowledge_base(_csv(tmp_path / "tags.csv"))
     result = correct_caption(
         "long hair, vocaloid, hatsune miku, 1girl",
+        kb,
+        options=CaptionCorrectionOptions(
+            insert_no_artist=True,
+            trigger_word="@dataset-trigger",
+            trigger_at_front=True,
+        ),
+    )
+
+    assert result.text == (
+        "@dataset-trigger, 1girl, hatsune miku, vocaloid, @no-artist, long hair"
+    )
+    assert result.inserted_no_artist
+
+
+def test_existing_front_trigger_moves_to_front_and_allows_no_artist(tmp_path):
+    kb = load_tag_knowledge_base(_csv(tmp_path / "tags.csv"))
+    result = correct_caption(
+        "long hair, vocaloid, @dataset-trigger, hatsune miku, 1girl",
         kb,
         options=CaptionCorrectionOptions(
             insert_no_artist=True,

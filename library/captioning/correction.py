@@ -234,12 +234,12 @@ def correct_caption(
     unknown: list[str] = []
     seen: set[str] = set()
     trigger = options.trigger_word.strip()
-    trigger_present = bool(trigger) and any(
-        tag_key(tag) == tag_key(trigger) for tag in tags
-    )
+    trigger_key = tag_key(trigger) if trigger else ""
 
     for tag in tags:
         key = tag_key(tag)
+        if trigger and key == trigger_key:
+            continue
         if key in seen:
             continue
         seen.add(key)
@@ -249,7 +249,7 @@ def correct_caption(
             kind = "general"
         buckets[kind].append(tag)
 
-    if trigger and not trigger_present:
+    if trigger:
         if options.trigger_at_front:
             buckets["front"].append(trigger)
         else:
